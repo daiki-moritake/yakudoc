@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { after, describe, it } from "node:test";
-import { hashText } from "../src/normalize";
+import { hashText } from "yakudoc-core";
 import { TranslationStore, TranslationsFile } from "../src/translationStore";
 
 const tempDirs: string[] = [];

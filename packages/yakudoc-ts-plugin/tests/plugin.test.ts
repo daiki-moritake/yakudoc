@@ -5,8 +5,8 @@ import * as path from "node:path";
 import { after, before, describe, it } from "node:test";
 import * as ts from "typescript";
 import type * as tsserver from "typescript/lib/tsserverlibrary";
+import { hashText } from "yakudoc-core";
 import init from "../src/index";
-import { hashText } from "../src/normalize";
 
 const DESCRIPTION = "Fetches user data from the API.";
 const PARAM_DOC = "The user id.";

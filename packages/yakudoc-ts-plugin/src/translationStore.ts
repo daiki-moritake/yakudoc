@@ -1,15 +1,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { hashText, normalizeText } from "./normalize";
+import {
+  hashText,
+  normalizeText,
+  type TranslationEntry,
+  type TranslationsFile,
+} from "yakudoc-core";
 
-export interface TranslationEntry {
-  original: string;
-  translated: string;
-  /** 補助情報。リネーム検出用の "src/api/user.ts#fetchUser" 形式 */
-  symbol?: string;
-}
-
-export type TranslationsFile = Record<string, TranslationEntry>;
+export type { TranslationEntry, TranslationsFile };
 
 export type Logger = (message: string) => void;
 
