@@ -9,3 +9,17 @@ export interface TranslationEntry {
 
 /** .yakudoc/translations.json 全体。キーは正規化した原文のハッシュ */
 export type TranslationsFile = Record<string, TranslationEntry>;
+
+/**
+ * `yakudoc translate --engine <name>` が翻訳エンジンパッケージ
+ * (yakudoc-ai-prep / yakudoc-mt)に渡すオプション。
+ * エンジン側は `run(options: EngineRunOptions): Promise<void>` を公開する。
+ */
+export interface EngineRunOptions {
+  /** プロジェクトルート(CLI 実行時のカレントディレクトリ) */
+  projectDir: string;
+  /** translations.json のパス(省略時: .yakudoc/translations.json) */
+  translationsPath?: string;
+  /** 翻訳結果 JSON を書き戻す場合、そのファイルのパス */
+  applyPath?: string;
+}

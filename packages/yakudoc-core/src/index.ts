@@ -12,4 +12,8 @@ export {
   writeTranslations,
   type MergeStats,
 } from "./translationsFile";
-export type { TranslationEntry, TranslationsFile } from "./types";
+export type {
+  EngineRunOptions,
+  TranslationEntry,
+  TranslationsFile,
+} from "./types";
