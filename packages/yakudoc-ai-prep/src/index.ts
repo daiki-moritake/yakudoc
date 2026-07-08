@@ -2,7 +2,6 @@ import type { EngineRunOptions } from "yakudoc-core";
 import { applyResponse } from "./apply";
 import { prepare } from "./prep";
 
-export { protectText, restoreText } from "./placeholders";
 export { prepare, type PrepareSummary, type RequestFile } from "./prep";
 export { applyResponse, type ApplySummary } from "./apply";
 

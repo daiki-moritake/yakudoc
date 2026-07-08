@@ -1,11 +1,12 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  placeholderToken,
   readTranslations,
+  restoreText,
   writeTranslations,
   type EngineRunOptions,
 } from "yakudoc-core";
-import { restoreText } from "./placeholders";
 import { resolveTranslationsPath, type RequestFile } from "./prep";
 
 export interface ApplySummary {
@@ -56,7 +57,7 @@ export function applyResponse(
     const { text, missing } = restoreText(translatedRaw.trim(), placeholders);
     if (missing.length > 0) {
       summary.skipped.push(
-        `${hash}: 保護トークン ${missing.map((i) => `⟦${i}⟧`).join(" ")} が訳文にありません`
+        `${hash}: 保護トークン ${missing.map(placeholderToken).join(" ")} が訳文にありません`
       );
       continue;
     }

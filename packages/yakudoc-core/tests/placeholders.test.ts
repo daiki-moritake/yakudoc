@@ -5,7 +5,7 @@ import { protectText, restoreText } from "../src/placeholders";
 describe("protectText", () => {
   it("インラインコードをトークンに置き換える", () => {
     const result = protectText("Returns the `UserData` object.");
-    assert.equal(result.text, "Returns the ⟦0⟧ object.");
+    assert.equal(result.text, "Returns the <ph0> object.");
     assert.deepEqual(result.placeholders, ["`UserData`"]);
   });
 
@@ -13,7 +13,7 @@ describe("protectText", () => {
     const result = protectText(
       "See {@link fetchUser} and https://example.com/docs for details."
     );
-    assert.equal(result.text, "See ⟦0⟧ and ⟦1⟧ for details.");
+    assert.equal(result.text, "See <ph0> and <ph1> for details.");
     assert.deepEqual(result.placeholders, [
       "{@link fetchUser}",
       "https://example.com/docs",
@@ -23,7 +23,7 @@ describe("protectText", () => {
   it("フェンス付きコードブロックを丸ごと保護する", () => {
     const original = "Usage:\n```ts\nconst x = fetchUser(\"1\");\n```\nDone.";
     const result = protectText(original);
-    assert.equal(result.text, "Usage:\n⟦0⟧\nDone.");
+    assert.equal(result.text, "Usage:\n<ph0>\nDone.");
     assert.equal(result.placeholders[0].includes("fetchUser"), true);
   });
 
@@ -51,7 +51,7 @@ describe("restoreText", () => {
   });
 
   it("同じトークンが複数回使われていても全て復元する", () => {
-    const restored = restoreText("⟦0⟧ と ⟦0⟧", ["`x`"]);
+    const restored = restoreText("<ph0> と <ph0>", ["`x`"]);
     assert.equal(restored.text, "`x` と `x`");
   });
 });

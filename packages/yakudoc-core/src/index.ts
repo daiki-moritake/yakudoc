@@ -12,6 +12,13 @@ export {
   writeTranslations,
   type MergeStats,
 } from "./translationsFile";
+export {
+  placeholderToken,
+  protectText,
+  restoreText,
+  type ProtectedText,
+  type RestoredText,
+} from "./placeholders";
 export type {
   EngineRunOptions,
   TranslationEntry,

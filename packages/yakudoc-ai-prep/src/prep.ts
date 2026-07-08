@@ -1,7 +1,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { readTranslations, type EngineRunOptions } from "yakudoc-core";
-import { protectText } from "./placeholders";
+import {
+  protectText,
+  readTranslations,
+  type EngineRunOptions,
+} from "yakudoc-core";
 
 /** .yakudoc/ai/request.json の形式 */
 export interface RequestFile {
@@ -11,7 +14,7 @@ export interface RequestFile {
     {
       /** プレースホルダー保護済みの原文 */
       source: string;
-      /** ⟦n⟧ トークン → 元の断片(apply 時の復元に使う) */
+      /** <phN> トークン → 元の断片(apply 時の復元に使う) */
       placeholders: string[];
       symbol?: string;
     }
@@ -108,7 +111,7 @@ function buildPrompt(
 ## ルール
 
 - 出力は \`{ "<キー>": "<訳文>", ... }\` 形式の JSON のみを、コードブロックで囲んで返す
-- \`⟦0⟧\` \`⟦1⟧\` のようなトークンはコード・リンク・URL の保護用の印。**翻訳・削除せず**、訳文の対応する位置にそのまま残す
+- \`<ph0>\` \`<ph1>\` のようなトークンはコード・リンク・URL の保護用の印。**翻訳・削除せず**、訳文の対応する位置にそのまま残す
 - 文体は「です・ます調」で簡潔に。JSDoc の一行説明として自然な日本語にする
 - 技術用語は用語集に従う。用語集に無い一般的な技術用語(callback、Promise など)は無理に訳さずカタカナまたは原語のままでよい
 

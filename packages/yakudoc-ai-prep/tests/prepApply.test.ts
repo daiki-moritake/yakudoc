@@ -44,14 +44,14 @@ describe("prepare", () => {
 
     const request = JSON.parse(fs.readFileSync(summary.requestPath, "utf8"));
     const entry = request.entries[hashText(PENDING)];
-    assert.equal(entry.source, "Returns the ⟦0⟧ object. See ⟦1⟧.");
+    assert.equal(entry.source, "Returns the <ph0> object. See <ph1>.");
     assert.deepEqual(entry.placeholders, ["`UserData`", "{@link fetchUser}"]);
     // 翻訳済みエントリは含まれない
     assert.equal(request.entries[hashText(DONE)], undefined);
 
     // prompt.md に保護済み原文と用語集の案内が含まれる
     const prompt = fs.readFileSync(summary.promptPath, "utf8");
-    assert.ok(prompt.includes("Returns the ⟦0⟧ object."));
+    assert.ok(prompt.includes("Returns the <ph0> object."));
     assert.ok(prompt.includes("glossary.json"));
 
     // 空の用語集が作成される
@@ -100,7 +100,7 @@ describe("applyResponse", () => {
     fs.writeFileSync(
       responsePath,
       JSON.stringify({
-        [hashText(PENDING)]: "⟦0⟧ オブジェクトを返します。⟦1⟧ を参照してください。",
+        [hashText(PENDING)]: "<ph0> オブジェクトを返します。<ph1> を参照してください。",
       })
     );
 
@@ -135,7 +135,7 @@ describe("applyResponse", () => {
     const summary = applyResponse({ projectDir: dir, applyPath: responsePath });
     assert.equal(summary.applied, 0);
     assert.equal(summary.skipped.length, 1);
-    assert.ok(summary.skipped[0].includes("⟦0⟧"));
+    assert.ok(summary.skipped[0].includes("<ph0>"));
 
     const translations = readTranslations(
       path.join(dir, ".yakudoc", "translations.json")
@@ -152,7 +152,7 @@ describe("applyResponse", () => {
       responsePath,
       "以下が翻訳結果です。\n```json\n" +
         JSON.stringify({
-          [hashText(PENDING)]: "⟦0⟧ を返します。⟦1⟧ も参照。",
+          [hashText(PENDING)]: "<ph0> を返します。<ph1> も参照。",
         }) +
         "\n```\n"
     );
