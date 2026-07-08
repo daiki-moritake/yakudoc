@@ -111,7 +111,7 @@ npx yakudoc translate --engine prep
 
 ### 反映
 
-`translations.json` を保存すると、VSCode 拡張が自動的に検知し、`tsserver` に再読み込みを指示します。エディタの再起動は不要です。
+`translations.json` を保存すると、`tsserver` プラグインがファイルの変更を自動検知して表示に反映します。エディタの再起動は不要です。
 
 ## 差分翻訳
 

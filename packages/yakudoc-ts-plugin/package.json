@@ -1,0 +1,22 @@
+{
+  "name": "yakudoc-ts-plugin",
+  "version": "0.1.0",
+  "description": "tsserver Language Service Plugin that swaps JSDoc documentation shown in the editor (hover / completion / signature help) with Japanese translations",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "yakudoc-core": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

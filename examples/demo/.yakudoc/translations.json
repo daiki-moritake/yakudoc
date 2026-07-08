@@ -1,0 +1,27 @@
+{
+  "decbb839": {
+    "original": "Fetches user data from the API.",
+    "translated": "APIからユーザーデータを取得します。",
+    "symbol": "src/user.ts#fetchUser"
+  },
+  "89788ba0": {
+    "original": "The user id.",
+    "translated": "ユーザーID。",
+    "symbol": "src/user.ts#fetchUser"
+  },
+  "12b9a6ad": {
+    "original": "The user's display name.",
+    "translated": "ユーザーの表示名。",
+    "symbol": "src/user.ts#fetchUser"
+  },
+  "450d4a0b": {
+    "original": "Represents an authenticated user session.",
+    "translated": "認証済みのユーザーセッションを表します。",
+    "symbol": "src/user.ts#Session"
+  },
+  "d33df752": {
+    "original": "The unique token issued at login.",
+    "translated": "ログイン時に発行される一意のトークン。",
+    "symbol": "src/user.ts#Session.token"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "yakudoc",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w yakudoc-core && npm run build -w yakudoc-ts-plugin && npm run build -w yakudoc-ai-prep && npm run build -w yakudoc-mt && npm run build -w yakudoc-vscode",
+    "test": "npm run test --workspaces --if-present"
+  }
+}
