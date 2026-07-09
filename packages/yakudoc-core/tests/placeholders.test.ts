@@ -27,6 +27,18 @@ describe("protectText", () => {
     assert.equal(result.placeholders[0].includes("fetchUser"), true);
   });
 
+  it("{型} 注釈を保護し、{@link} タグとは別扱いにする", () => {
+    const result = protectText(
+      "Returns {Promise<string>}. See {@link Foo} and pass {number|null}."
+    );
+    assert.equal(result.text, "Returns <ph1>. See <ph0> and pass <ph2>.");
+    assert.deepEqual(result.placeholders, [
+      "{@link Foo}",
+      "{Promise<string>}",
+      "{number|null}",
+    ]);
+  });
+
   it("保護対象が無ければそのまま返す", () => {
     const result = protectText("Fetches user data from the API.");
     assert.equal(result.text, "Fetches user data from the API.");

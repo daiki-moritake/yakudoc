@@ -17,6 +17,9 @@ const PROTECT_PATTERNS: RegExp[] = [
   /`[^`\n]+`/g,
   // {@link Foo} / {@linkcode Foo} / {@inheritDoc} などのインラインタグ
   /\{@[a-zA-Z]+[^{}]*\}/g,
+  // {string} {number|null} {Foo<Bar>} などの型注釈。
+  // {@...} タグは上で処理済みなので、残る {...} は型とみなす。
+  /\{[^@{}][^{}]*\}/g,
   // URL
   /https?:\/\/[^\s)]+/g,
 ];

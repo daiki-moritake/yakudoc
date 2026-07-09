@@ -1,0 +1,7 @@
+{
+  "name": "vscode",
+  "version": "0.0.0-stub",
+  "private": true,
+  "main": "index.js",
+  "description": "Local resolvable stub so tests can mock the 'vscode' module. The real VS Code host injects its own 'vscode' at runtime; this is never shipped."
+}
