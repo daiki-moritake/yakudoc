@@ -1,4 +1,5 @@
 import type { TranslateFn } from "./engine";
+import { normalizeJapaneseOutput } from "./postprocess";
 
 export const DEFAULT_MODEL = "Xenova/nllb-200-distilled-600M";
 
@@ -53,9 +54,11 @@ export async function createLocalTranslator(
         }
         const outputs = await translator([text], options);
         const first = Array.isArray(outputs) ? outputs[0] : outputs;
-        return String(
+        const raw = String(
           (first as { translation_text?: unknown }).translation_text ?? ""
         );
+        // 保護トークン復元前に日本語出力を整える(句読点の全角化など)
+        return normalizeJapaneseOutput(raw);
       })
     );
 }
