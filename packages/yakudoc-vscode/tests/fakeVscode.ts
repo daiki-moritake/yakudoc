@@ -3,12 +3,17 @@ import * as path from "node:path";
 
 /**
  * extension.ts が使う範囲の vscode API をフェイクで再現する。
- * ファイル操作は実 fs を使い(Uri.fsPath 経由)、UI 応答とイベント配線は
- * テストから制御・観測できるようにする。
+ *
+ * 設計上の制約: node:test の mock.module は登録時に namedExports の「値」を
+ * スナップショットする(ゲッターは効かない)。そこで名前空間メンバー
+ * (window / commands / workspace ...)は 1 度きりの安定した参照とし、
+ * その中のメソッド・ゲッターが可変状態 `active` を読む形にする。
+ * これにより「モック登録 1 回・extension import 1 回・状態だけ差し替え」で
+ * テストごとの挙動を切り替えられ、Node のバージョン差にも依存しない。
  *
  * 肝は config.update → onDidChangeConfiguration の配線を本物どおりに
- * 動かすこと。これによりトグルの反映経路
- * (update → 設定変更イベント → configurePlugin)を実際に実行できる。
+ * 動かすこと。トグルの反映経路(update → 設定変更イベント →
+ * configurePlugin)を実際に実行できる。
  */
 
 export interface FakeUri {
@@ -32,180 +37,188 @@ export interface ShownMessage {
 }
 
 export interface FakeOptions {
-  /** yakudoc.enabled の初期値 */
   enabled?: boolean;
-  /** workspace フォルダ(実ディレクトリの絶対パス) */
   workspaceFolders?: string[];
-  /** findFiles が返す tsconfig 群(絶対パス) */
   findFilesResult?: string[];
-  /** typescript-language-features 拡張を存在させるか */
   hasTsExtension?: boolean;
-  /** showInformationMessage が返す選択(メッセージ本文の部分一致 → 返す項目) */
+  /** showInformationMessage: メッセージ本文の部分一致 → 返す項目 */
   infoResponses?: Record<string, string>;
-  /** showQuickPick が返す項目ラベル(部分一致で選択される) */
+  /** showQuickPick: 部分一致で選択されるラベル */
   quickPickPick?: string[];
 }
 
-export interface FakeVscode {
-  api: Record<string, unknown>;
-  /** 記録された configurePlugin 呼び出し */
+type ConfigListener = (event: { affectsConfiguration(k: string): boolean }) => unknown;
+
+/** 1 テスト分の可変状態と観測用レコーダ */
+export interface FakeState {
+  options: FakeOptions;
+  configStore: Record<string, unknown>;
+  configListeners: ConfigListener[];
+  commands: Map<string, (...args: unknown[]) => unknown>;
   configurePluginCalls: ConfigurePluginCall[];
-  /** 表示されたメッセージ */
   messages: ShownMessage[];
-  /** 実行された executeCommand の id */
   executedCommands: string[];
-  /** 登録されたコマンド */
-  runCommand(id: string): Promise<unknown>;
-  /** 現在のステータスバー状態 */
-  statusBar: { text: string; tooltip: string; command?: string; visible: boolean };
-  /** 現在の enabled 値 */
-  getEnabled(): boolean;
-  /** workspaceState のストア */
   workspaceState: Map<string, unknown>;
+  statusBar: {
+    text: string;
+    tooltip: string;
+    command?: string;
+    visible: boolean;
+    show(): void;
+    hide(): void;
+    dispose(): void;
+  };
+  runCommand(id: string): Promise<unknown>;
+  getEnabled(): boolean;
 }
 
-export function createFakeVscode(options: FakeOptions = {}): FakeVscode {
-  const configStore = { "yakudoc.enabled": options.enabled ?? true };
-  const configListeners: Array<(event: { affectsConfiguration(k: string): boolean }) => unknown> = [];
-  const commands = new Map<string, (...args: unknown[]) => unknown>();
-  const configurePluginCalls: ConfigurePluginCall[] = [];
-  const messages: ShownMessage[] = [];
-  const executedCommands: string[] = [];
-  const workspaceState = new Map<string, unknown>();
-
-  const statusBar = {
-    text: "",
-    tooltip: "",
-    command: undefined as string | undefined,
-    visible: false,
-    show() {
-      this.visible = true;
+export function createFakeState(options: FakeOptions = {}): FakeState {
+  const state: FakeState = {
+    options,
+    configStore: { "yakudoc.enabled": options.enabled ?? true },
+    configListeners: [],
+    commands: new Map(),
+    configurePluginCalls: [],
+    messages: [],
+    executedCommands: [],
+    workspaceState: new Map(),
+    statusBar: {
+      text: "",
+      tooltip: "",
+      command: undefined,
+      visible: false,
+      show() {
+        this.visible = true;
+      },
+      hide() {
+        this.visible = false;
+      },
+      dispose() {},
     },
-    hide() {
-      this.visible = false;
-    },
-    dispose() {},
-  };
-
-  const api = {
-    StatusBarAlignment: { Left: 1, Right: 2 },
-    ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
-
-    Uri: {
-      file: (p: string) => uri(p),
-      joinPath: (base: FakeUri, ...segments: string[]) =>
-        uri(path.join(base.fsPath, ...segments)),
-    },
-
-    window: {
-      createStatusBarItem: () => statusBar,
-      showInformationMessage: (message: string, ...items: string[]) => {
-        messages.push({ kind: "info", message, items });
-        const matchKey = Object.keys(options.infoResponses ?? {}).find((k) =>
-          message.includes(k)
-        );
-        return Promise.resolve(
-          matchKey ? options.infoResponses![matchKey] : undefined
-        );
-      },
-      showWarningMessage: (message: string, ...items: string[]) => {
-        messages.push({ kind: "warning", message, items });
-        return Promise.resolve(undefined);
-      },
-      showQuickPick: (
-        items: Array<{ label: string; uri: FakeUri }>,
-        _opts: unknown
-      ) => {
-        const picks = items.filter((item) =>
-          (options.quickPickPick ?? []).some((label) => item.label.includes(label))
-        );
-        return Promise.resolve(picks);
-      },
-    },
-
-    commands: {
-      registerCommand: (id: string, handler: (...args: unknown[]) => unknown) => {
-        commands.set(id, handler);
-        return { dispose() {} };
-      },
-      executeCommand: (id: string, ...args: unknown[]) => {
-        executedCommands.push(id);
-        const handler = commands.get(id);
-        return Promise.resolve(handler ? handler(...args) : undefined);
-      },
-    },
-
-    extensions: {
-      getExtension: (id: string) => {
-        if (id !== "vscode.typescript-language-features" || options.hasTsExtension === false) {
-          return undefined;
-        }
-        return {
-          activate: () => Promise.resolve(),
-          exports: {
-            getAPI: (_version: number) => ({
-              configurePlugin: (name: string, config: unknown) => {
-                configurePluginCalls.push({ name, config });
-              },
-            }),
-          },
-        };
-      },
-    },
-
-    workspace: {
-      workspaceFolders: (options.workspaceFolders ?? []).map((p) => ({
-        uri: uri(p),
-      })),
-      getConfiguration: (section: string) => ({
-        get: <T>(key: string, defaultValue: T): T => {
-          const value = (configStore as Record<string, unknown>)[`${section}.${key}`];
-          return (value === undefined ? defaultValue : value) as T;
-        },
-        update: (key: string, value: unknown, _target: unknown) => {
-          (configStore as Record<string, unknown>)[`${section}.${key}`] = value;
-          const event = {
-            affectsConfiguration: (k: string) => k === `${section}.${key}`,
-          };
-          return Promise.all(configListeners.map((listener) => listener(event)));
-        },
-      }),
-      onDidChangeConfiguration: (
-        listener: (event: { affectsConfiguration(k: string): boolean }) => unknown
-      ) => {
-        configListeners.push(listener);
-        return { dispose() {} };
-      },
-      findFiles: (_pattern: string, _exclude: string, _max: number) =>
-        Promise.resolve((options.findFilesResult ?? []).map((p) => uri(p))),
-      asRelativePath: (u: FakeUri) => u.fsPath,
-      fs: {
-        readFile: (u: FakeUri) => Promise.resolve(fs.readFileSync(u.fsPath)),
-        writeFile: (u: FakeUri, content: Uint8Array) => {
-          fs.writeFileSync(u.fsPath, content);
-          return Promise.resolve();
-        },
-      },
-    },
-  };
-
-  return {
-    api: api as unknown as Record<string, unknown>,
-    configurePluginCalls,
-    messages,
-    executedCommands,
-    runCommand: (id: string) => {
-      const handler = commands.get(id);
+    runCommand(id: string) {
+      const handler = state.commands.get(id);
       if (!handler) {
         throw new Error(`command not registered: ${id}`);
       }
       return Promise.resolve(handler());
     },
-    statusBar,
-    getEnabled: () => configStore["yakudoc.enabled"],
-    workspaceState,
+    getEnabled() {
+      return state.configStore["yakudoc.enabled"] as boolean;
+    },
   };
+  return state;
 }
+
+// mock.module で差し替える「現在の状態」。テストごとに setActiveFake で更新する。
+let active: FakeState = createFakeState();
+
+export function setActiveFake(state: FakeState): void {
+  active = state;
+}
+
+/**
+ * mock.module に一度だけ渡す安定した vscode namespace。
+ * すべてのメソッド・ゲッターは呼び出し時に `active` を読む。
+ */
+export const vscodeApi = {
+  StatusBarAlignment: { Left: 1, Right: 2 },
+  ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
+
+  Uri: {
+    file: (p: string) => uri(p),
+    joinPath: (base: FakeUri, ...segments: string[]) =>
+      uri(path.join(base.fsPath, ...segments)),
+  },
+
+  window: {
+    createStatusBarItem: () => active.statusBar,
+    showInformationMessage: (message: string, ...items: string[]) => {
+      active.messages.push({ kind: "info", message, items });
+      const matchKey = Object.keys(active.options.infoResponses ?? {}).find((k) =>
+        message.includes(k)
+      );
+      return Promise.resolve(
+        matchKey ? active.options.infoResponses![matchKey] : undefined
+      );
+    },
+    showWarningMessage: (message: string, ...items: string[]) => {
+      active.messages.push({ kind: "warning", message, items });
+      return Promise.resolve(undefined);
+    },
+    showQuickPick: (items: Array<{ label: string; uri: FakeUri }>, _opts: unknown) => {
+      const picks = items.filter((item) =>
+        (active.options.quickPickPick ?? []).some((label) => item.label.includes(label))
+      );
+      return Promise.resolve(picks);
+    },
+  },
+
+  commands: {
+    registerCommand: (id: string, handler: (...args: unknown[]) => unknown) => {
+      active.commands.set(id, handler);
+      return { dispose() {} };
+    },
+    executeCommand: (id: string, ...args: unknown[]) => {
+      active.executedCommands.push(id);
+      const handler = active.commands.get(id);
+      return Promise.resolve(handler ? handler(...args) : undefined);
+    },
+  },
+
+  extensions: {
+    getExtension: (id: string) => {
+      if (
+        id !== "vscode.typescript-language-features" ||
+        active.options.hasTsExtension === false
+      ) {
+        return undefined;
+      }
+      return {
+        activate: () => Promise.resolve(),
+        exports: {
+          getAPI: (_version: number) => ({
+            configurePlugin: (name: string, config: unknown) => {
+              active.configurePluginCalls.push({ name, config });
+            },
+          }),
+        },
+      };
+    },
+  },
+
+  workspace: {
+    get workspaceFolders() {
+      return (active.options.workspaceFolders ?? []).map((p) => ({ uri: uri(p) }));
+    },
+    getConfiguration: (section: string) => ({
+      get: <T>(key: string, defaultValue: T): T => {
+        const value = active.configStore[`${section}.${key}`];
+        return (value === undefined ? defaultValue : value) as T;
+      },
+      update: (key: string, value: unknown, _target: unknown) => {
+        active.configStore[`${section}.${key}`] = value;
+        const event = {
+          affectsConfiguration: (k: string) => k === `${section}.${key}`,
+        };
+        return Promise.all(active.configListeners.map((listener) => listener(event)));
+      },
+    }),
+    onDidChangeConfiguration: (listener: ConfigListener) => {
+      active.configListeners.push(listener);
+      return { dispose() {} };
+    },
+    findFiles: (_pattern: string, _exclude: string, _max: number) =>
+      Promise.resolve((active.options.findFilesResult ?? []).map((p) => uri(p))),
+    asRelativePath: (u: FakeUri) => u.fsPath,
+    fs: {
+      readFile: (u: FakeUri) => Promise.resolve(fs.readFileSync(u.fsPath)),
+      writeFile: (u: FakeUri, content: Uint8Array) => {
+        fs.writeFileSync(u.fsPath, content);
+        return Promise.resolve();
+      },
+    },
+  },
+};
 
 /** テスト用の最小 ExtensionContext */
 export function createFakeContext(workspaceState: Map<string, unknown>) {

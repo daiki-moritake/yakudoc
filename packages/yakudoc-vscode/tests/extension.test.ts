@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { after, afterEach, describe, it, mock } from "node:test";
-import { createFakeContext, createFakeVscode, type FakeVscode } from "./fakeVscode";
-
-const EXTENSION_PATH = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../src/extension.ts"
-);
+import { after, before, describe, it, mock } from "node:test";
+import {
+  createFakeContext,
+  createFakeState,
+  setActiveFake,
+  vscodeApi,
+  type FakeOptions,
+  type FakeState,
+} from "./fakeVscode";
 
 const tempDirs: string[] = [];
 
@@ -19,77 +20,71 @@ function tempDir(): string {
   return dir;
 }
 
-/**
- * vscode をモックしてから extension を動的 import し、activate まで実行する。
- * mock.module は import 前に登録する必要があるため、毎回この順序で行う。
- */
-async function activateWith(fake: FakeVscode) {
-  mock.module("vscode", { namedExports: fake.api });
-  // 各テストでモックを差し替えるため、キャッシュを避けて毎回新しく評価させる。
-  // 相対指定にクエリを付けると tsx が解決に失敗するので絶対 file URL を使う。
-  const url = pathToFileURL(EXTENSION_PATH).href + `?v=${Math.random()}`;
-  const extension = await import(url);
-  const context = createFakeContext(fake.workspaceState);
-  await extension.activate(context);
-  return { extension, context };
-}
+// mock.module は登録時に値をスナップショットするため、安定した vscodeApi を
+// 一度だけ渡し、extension も一度だけ import する。テストごとの差異は
+// setActiveFake で状態を差し替えて表現する(Node バージョン差に非依存)。
+let extension: typeof import("../src/extension");
 
-afterEach(() => {
-  mock.reset();
+before(async () => {
+  mock.module("vscode", { namedExports: vscodeApi });
+  extension = await import("../src/extension");
 });
 
 after(() => {
+  mock.reset();
   for (const dir of tempDirs) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
+/** 新しい状態を有効化して activate まで実行する */
+async function activateWith(options: FakeOptions): Promise<FakeState> {
+  const state = createFakeState(options);
+  setActiveFake(state);
+  const context = createFakeContext(state.workspaceState);
+  // 最小の ExtensionContext なので、公開シグネチャに合わせてキャストする
+  await extension.activate(context as unknown as Parameters<typeof extension.activate>[0]);
+  return state;
+}
+
 describe("activate", () => {
   it("有効時はステータスバーに JP を表示し、tsserver へ enabled:true を送る", async () => {
-    const fake = createFakeVscode({ enabled: true, hasTsExtension: true });
-    await activateWith(fake);
+    const state = await activateWith({ enabled: true, hasTsExtension: true });
 
-    assert.ok(fake.statusBar.text.includes("JP"));
-    assert.equal(fake.statusBar.visible, true);
-    assert.equal(fake.statusBar.command, "yakudoc.toggle");
-    // 起動時に現在の設定を tsserver へ同期する
-    assert.deepEqual(fake.configurePluginCalls.at(-1), {
+    assert.ok(state.statusBar.text.includes("JP"));
+    assert.equal(state.statusBar.visible, true);
+    assert.equal(state.statusBar.command, "yakudoc.toggle");
+    assert.deepEqual(state.configurePluginCalls.at(-1), {
       name: "yakudoc-ts-plugin",
       config: { enabled: true },
     });
   });
 
   it("無効設定で起動するとステータスバーに EN を表示する", async () => {
-    const fake = createFakeVscode({ enabled: false, hasTsExtension: true });
-    await activateWith(fake);
-    assert.ok(fake.statusBar.text.includes("EN"));
+    const state = await activateWith({ enabled: false, hasTsExtension: true });
+    assert.ok(state.statusBar.text.includes("EN"));
   });
 });
 
 describe("yakudoc.toggle", () => {
   it("トグルで設定が反転し、その反映として configurePlugin と表示が更新される", async () => {
-    const fake = createFakeVscode({ enabled: true, hasTsExtension: true });
-    await activateWith(fake);
-    const callsBefore = fake.configurePluginCalls.length;
+    const state = await activateWith({ enabled: true, hasTsExtension: true });
+    const callsBefore = state.configurePluginCalls.length;
 
-    // 実際のコマンドハンドラを実行する(update → onDidChangeConfiguration 経由で反映)
-    await fake.runCommand("yakudoc.toggle");
+    await state.runCommand("yakudoc.toggle");
 
-    assert.equal(fake.getEnabled(), false);
-    assert.ok(fake.statusBar.text.includes("EN"));
-    // トグルによって新たな configurePlugin({ enabled: false }) が送られている
-    const latest = fake.configurePluginCalls.at(-1);
-    assert.deepEqual(latest, {
+    assert.equal(state.getEnabled(), false);
+    assert.ok(state.statusBar.text.includes("EN"));
+    assert.deepEqual(state.configurePluginCalls.at(-1), {
       name: "yakudoc-ts-plugin",
       config: { enabled: false },
     });
-    assert.ok(fake.configurePluginCalls.length > callsBefore);
+    assert.ok(state.configurePluginCalls.length > callsBefore);
 
-    // もう一度トグルすると true に戻る
-    await fake.runCommand("yakudoc.toggle");
-    assert.equal(fake.getEnabled(), true);
-    assert.ok(fake.statusBar.text.includes("JP"));
-    assert.deepEqual(fake.configurePluginCalls.at(-1)?.config, { enabled: true });
+    await state.runCommand("yakudoc.toggle");
+    assert.equal(state.getEnabled(), true);
+    assert.ok(state.statusBar.text.includes("JP"));
+    assert.deepEqual(state.configurePluginCalls.at(-1)?.config, { enabled: true });
   });
 });
 
@@ -105,21 +100,18 @@ describe("yakudoc.registerPlugin", () => {
 }`
     );
 
-    const fake = createFakeVscode({
+    const state = await activateWith({
       hasTsExtension: true,
       findFilesResult: [tsconfigPath],
       infoResponses: { "登録しました": "再起動" },
     });
-    await activateWith(fake);
 
-    await fake.runCommand("yakudoc.registerPlugin");
+    await state.runCommand("yakudoc.registerPlugin");
 
     const written = fs.readFileSync(tsconfigPath, "utf8");
     assert.ok(written.includes("yakudoc-ts-plugin"));
-    // コメントは保持される
     assert.ok(written.includes("// プロジェクト設定"));
-    // 再起動が提案され、承諾したので tsserver 再起動コマンドが実行される
-    assert.ok(fake.executedCommands.includes("typescript.restartTsServer"));
+    assert.ok(state.executedCommands.includes("typescript.restartTsServer"));
   });
 
   it("既に登録済みなら書き換えず、その旨を通知する", async () => {
@@ -130,26 +122,22 @@ describe("yakudoc.registerPlugin", () => {
 }`;
     fs.writeFileSync(tsconfigPath, content);
 
-    const fake = createFakeVscode({
+    const state = await activateWith({
       hasTsExtension: true,
       findFilesResult: [tsconfigPath],
     });
-    await activateWith(fake);
-    await fake.runCommand("yakudoc.registerPlugin");
+    await state.runCommand("yakudoc.registerPlugin");
 
     assert.equal(fs.readFileSync(tsconfigPath, "utf8"), content);
-    assert.ok(
-      fake.messages.some((m) => m.message.includes("すべて登録済み"))
-    );
-    assert.ok(!fake.executedCommands.includes("typescript.restartTsServer"));
+    assert.ok(state.messages.some((m) => m.message.includes("すべて登録済み")));
+    assert.ok(!state.executedCommands.includes("typescript.restartTsServer"));
   });
 
   it("tsconfig.json が見つからなければ警告する", async () => {
-    const fake = createFakeVscode({ hasTsExtension: true, findFilesResult: [] });
-    await activateWith(fake);
-    await fake.runCommand("yakudoc.registerPlugin");
+    const state = await activateWith({ hasTsExtension: true, findFilesResult: [] });
+    await state.runCommand("yakudoc.registerPlugin");
     assert.ok(
-      fake.messages.some(
+      state.messages.some(
         (m) => m.kind === "warning" && m.message.includes("見つかりません")
       )
     );
@@ -162,19 +150,17 @@ describe("起動時の自動登録提案", () => {
     const tsconfigPath = path.join(dir, "tsconfig.json");
     fs.writeFileSync(tsconfigPath, `{ "compilerOptions": { "strict": true } }`);
 
-    const fake = createFakeVscode({
+    const state = await activateWith({
       hasTsExtension: true,
       workspaceFolders: [dir],
       infoResponses: { "登録されていません": "登録する", "登録しました": "再起動" },
     });
-    await activateWith(fake);
     // activate 内の offerRegistrationIfNeeded は非同期に走るので待つ
     await new Promise((resolve) => setImmediate(resolve));
 
     const written = fs.readFileSync(tsconfigPath, "utf8");
     assert.ok(written.includes("yakudoc-ts-plugin"));
-    // 二度目は提案しない(workspaceState に記録済み)
-    assert.equal(fake.workspaceState.get("yakudoc.registrationPrompted"), true);
+    assert.equal(state.workspaceState.get("yakudoc.registrationPrompted"), true);
   });
 
   it("既に登録済みなら提案しない", async () => {
@@ -184,15 +170,12 @@ describe("起動時の自動登録提案", () => {
       `{ "compilerOptions": { "plugins": [{ "name": "yakudoc-ts-plugin" }] } }`
     );
 
-    const fake = createFakeVscode({
+    const state = await activateWith({
       hasTsExtension: true,
       workspaceFolders: [dir],
     });
-    await activateWith(fake);
     await new Promise((resolve) => setImmediate(resolve));
 
-    assert.ok(
-      !fake.messages.some((m) => m.message.includes("登録されていません"))
-    );
+    assert.ok(!state.messages.some((m) => m.message.includes("登録されていません")));
   });
 });
