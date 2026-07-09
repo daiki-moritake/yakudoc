@@ -87,7 +87,7 @@ npx yakudoc extract
 }
 ```
 
-`{型}` やコード例（`@example` 内）、URL などは翻訳対象から自動的に除外され、プレースホルダーとして保護されます。
+`@example` 内のコード例や `@see` などの参照タグは抽出そのものから除外されます。説明文に含まれる `` `コード` ``・`{@link ...}`・`{型}`・URL は、翻訳を壊さないよう `<ph0>` のようなトークンに退避して保護され、書き戻し時に元へ復元されます。
 
 ### 翻訳の実行
 
@@ -98,16 +98,30 @@ npm install --save-dev yakudoc-mt
 npx yakudoc translate --engine local
 ```
 
-オフライン・API キー不要で完結します。精度よりも手軽さを優先する場合に向いています。
+オフライン・API キー不要で `translations.json` に直接書き込まれます。オープンウェイトの翻訳モデル（既定は NLLB-200 蒸留版）を使うため、精度よりも手軽さを優先する場合に向いています。初回はモデルのダウンロードが走ります。
 
 **オプション B：任意の AI に翻訳させる**
+
+まず下準備ファイルを生成します。
 
 ```bash
 npm install --save-dev yakudoc-ai-prep
 npx yakudoc translate --engine prep
 ```
 
-プレースホルダー保護済みの原文一覧と用語集（`glossary.json`）がまとめて出力されます。これを Claude などの LLM に渡し、返ってきた結果を同じキー構造で `translations.json` に書き戻すだけで完了します。
+`.yakudoc/ai/` 以下に次の3つが出力されます。
+
+- `prompt.md` — 翻訳ルールと用語集、保護済みの原文をまとめた、そのまま LLM に貼れる依頼文
+- `request.json` — 機械可読な原文一覧とプレースホルダー対応表
+- `glossary.json`（`.yakudoc/` 直下）— 用語集。`{ "英語": "日本語" }` 形式で育てると `prompt.md` に反映されます
+
+`prompt.md` を Claude などの LLM に渡し、返ってきた JSON を `.yakudoc/ai/response.json` に保存して、次のコマンドで書き戻します。
+
+```bash
+npx yakudoc translate --engine prep --apply .yakudoc/ai/response.json
+```
+
+保護トークン（`<ph0>` など）を復元して反映します。トークンが欠けた訳文は採用されず、翻訳待ちのまま残るため、原文中のコードやリンクが壊れることはありません。
 
 ### 反映
 
@@ -116,6 +130,8 @@ npx yakudoc translate --engine prep
 ## 差分翻訳
 
 翻訳のキーは原文コメントのハッシュ値です。コードを編集して JSDoc の原文が変わった場合、そのエントリだけが自動的に「翻訳待ち」に戻ります。無関係な変更で翻訳全体が失効することはありません。
+
+再抽出（`npx yakudoc extract`）しても既存の訳文は保持されます。ソースから消えた原文のエントリは既定では残され（抽出漏れで訳を失わないため）、`--prune` を付けると削除されます。
 
 ## 対応範囲・制限事項
 
