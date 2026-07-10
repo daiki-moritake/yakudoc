@@ -1,0 +1,89 @@
+import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { after, describe, it } from "node:test";
+import { computeStatus, statusProject } from "../src/status";
+import { writeTranslations } from "../src/translationsFile";
+import type { TranslationsFile } from "../src/types";
+
+const tempDirs: string[] = [];
+
+after(() => {
+  for (const dir of tempDirs) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+describe("computeStatus", () => {
+  it("翻訳済み・翻訳待ちを集計する", () => {
+    const translations: TranslationsFile = {
+      a: { original: "A.", translated: "訳A", symbol: "src/a.ts#a" },
+      b: { original: "B.", translated: "", symbol: "src/b.ts#b" },
+      c: { original: "C.", translated: "訳C", symbol: "src/c.ts#c" },
+    };
+    const status = computeStatus(translations);
+    assert.equal(status.total, 3);
+    assert.equal(status.translated, 2);
+    assert.equal(status.untranslated, 1);
+    assert.equal(status.pending.length, 1);
+    assert.equal(status.pending[0].symbol, "src/b.ts#b");
+    assert.equal(status.pending[0].original, "B.");
+  });
+
+  it("翻訳待ちを symbol → original 順に並べる", () => {
+    const translations: TranslationsFile = {
+      z: { original: "Zeta.", translated: "", symbol: "src/z.ts#z" },
+      a: { original: "Alpha.", translated: "", symbol: "src/a.ts#a" },
+      m1: { original: "Second.", translated: "", symbol: "src/m.ts#m" },
+      m0: { original: "First.", translated: "", symbol: "src/m.ts#m" },
+    };
+    const { pending } = computeStatus(translations);
+    assert.deepEqual(
+      pending.map((entry) => entry.original),
+      ["Alpha.", "First.", "Second.", "Zeta."]
+    );
+  });
+
+  it("symbol が無いエントリは空文字列で扱う", () => {
+    const translations: TranslationsFile = {
+      a: { original: "No symbol.", translated: "" },
+    };
+    const { pending } = computeStatus(translations);
+    assert.equal(pending[0].symbol, "");
+  });
+
+  it("空のファイルは total 0 になる", () => {
+    const status = computeStatus({});
+    assert.deepEqual(status, {
+      total: 0,
+      translated: 0,
+      untranslated: 0,
+      pending: [],
+    });
+  });
+});
+
+describe("statusProject", () => {
+  it("translations.json を読んで進捗を返す", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-status-"));
+    tempDirs.push(dir);
+    const outPath = path.join(dir, ".yakudoc", "translations.json");
+    writeTranslations(outPath, {
+      a: { original: "A.", translated: "訳A", symbol: "src/a.ts#a" },
+      b: { original: "B.", translated: "", symbol: "src/b.ts#b" },
+    });
+
+    const summary = statusProject({ projectDir: dir })!;
+    assert.equal(summary.outPath, outPath);
+    assert.equal(summary.total, 2);
+    assert.equal(summary.translated, 1);
+    assert.equal(summary.untranslated, 1);
+  });
+
+  it("ファイルが無ければ undefined を返す", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-status-"));
+    tempDirs.push(dir);
+    assert.equal(statusProject({ projectDir: dir }), undefined);
+  });
+});

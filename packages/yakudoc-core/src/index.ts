@@ -19,6 +19,14 @@ export {
   type ProtectedText,
   type RestoredText,
 } from "./placeholders";
+export {
+  computeStatus,
+  statusProject,
+  type PendingEntry,
+  type StatusCounts,
+  type StatusOptions,
+  type StatusSummary,
+} from "./status";
 export type {
   EngineRunOptions,
   TranslationEntry,

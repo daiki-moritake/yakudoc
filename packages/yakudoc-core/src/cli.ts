@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { extractProject } from "./extract";
+import { statusProject, type PendingEntry } from "./status";
 import type { EngineRunOptions } from "./types";
 
 const USAGE = `使い方: yakudoc <command> [options]
@@ -8,6 +9,7 @@ const USAGE = `使い方: yakudoc <command> [options]
 コマンド:
   extract      プロジェクトの JSDoc を走査し、.yakudoc/translations.json に
                翻訳待ちの原文を書き出す(既存の訳文は保持される)
+  status       translations.json を書き換えずに翻訳の進捗を表示する
   translate    翻訳エンジンを実行する(--engine が必須)
 
 オプション:
@@ -69,6 +71,51 @@ async function runTranslate(values: {
   });
 }
 
+/** 翻訳待ち一覧を「symbol  原文(長ければ省略)」の行に整形する */
+function formatPending(pending: PendingEntry[], limit = 20): string[] {
+  const lines = pending.slice(0, limit).map((entry) => {
+    const where = entry.symbol || "(シンボル不明)";
+    const text =
+      entry.original.length > 60
+        ? entry.original.slice(0, 57) + "…"
+        : entry.original;
+    return `  ${where}  ${text.replace(/\s+/g, " ")}`;
+  });
+  const rest = pending.length - lines.length;
+  if (rest > 0) {
+    lines.push(`  … 他 ${rest} 件`);
+  }
+  return lines;
+}
+
+function runStatus(values: { out?: string }): void {
+  const summary = statusProject({
+    projectDir: process.cwd(),
+    outPath: values.out,
+  });
+  if (!summary) {
+    throw new Error(
+      "translations.json が見つかりません。先に `yakudoc extract` を実行してください。"
+    );
+  }
+
+  console.log(`翻訳ファイル: ${summary.outPath}`);
+  if (summary.total === 0) {
+    console.log("翻訳対象がありません。");
+    return;
+  }
+  const percent = Math.round((summary.translated / summary.total) * 100);
+  console.log(
+    `進捗: ${summary.translated} / ${summary.total} 件 翻訳済み (${percent}%) / 翻訳待ち ${summary.untranslated} 件`
+  );
+  if (summary.pending.length > 0) {
+    console.log("\n翻訳待ち:");
+    for (const line of formatPending(summary.pending)) {
+      console.log(line);
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
@@ -110,6 +157,11 @@ async function main(): Promise<void> {
           : `ソースに存在しない ${summary.stale} 件のエントリを残しています(--prune で削除できます)`
       );
     }
+    return;
+  }
+
+  if (command === "status") {
+    runStatus(values);
     return;
   }
 
