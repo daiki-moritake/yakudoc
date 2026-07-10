@@ -36,6 +36,15 @@ export interface ShownMessage {
   items: string[];
 }
 
+export interface FakeTerminal {
+  name: string;
+  shown: boolean;
+  sentText: string[];
+  show(): void;
+  sendText(text: string): void;
+  dispose(): void;
+}
+
 export interface FakeOptions {
   enabled?: boolean;
   workspaceFolders?: string[];
@@ -58,6 +67,7 @@ export interface FakeState {
   configurePluginCalls: ConfigurePluginCall[];
   messages: ShownMessage[];
   executedCommands: string[];
+  terminals: FakeTerminal[];
   workspaceState: Map<string, unknown>;
   statusBar: {
     text: string;
@@ -81,6 +91,7 @@ export function createFakeState(options: FakeOptions = {}): FakeState {
     configurePluginCalls: [],
     messages: [],
     executedCommands: [],
+    terminals: [],
     workspaceState: new Map(),
     statusBar: {
       text: "",
@@ -132,6 +143,25 @@ export const vscodeApi = {
 
   window: {
     createStatusBarItem: () => active.statusBar,
+    get terminals() {
+      return active.terminals;
+    },
+    createTerminal: (name: string): FakeTerminal => {
+      const terminal: FakeTerminal = {
+        name,
+        shown: false,
+        sentText: [],
+        show() {
+          this.shown = true;
+        },
+        sendText(text: string) {
+          this.sentText.push(text);
+        },
+        dispose() {},
+      };
+      active.terminals.push(terminal);
+      return terminal;
+    },
     showInformationMessage: (message: string, ...items: string[]) => {
       active.messages.push({ kind: "info", message, items });
       const matchKey = Object.keys(active.options.infoResponses ?? {}).find((k) =>
