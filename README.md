@@ -89,6 +89,23 @@ npx yakudoc extract
 
 `@example` 内のコード例や `@see` などの参照タグは抽出そのものから除外されます。説明文に含まれる `` `コード` ``・`{@link ...}`・`{型}`・URL は、翻訳を壊さないよう `<ph0>` のようなトークンに退避して保護され、書き戻し時に元へ復元されます。
 
+### 進捗の確認
+
+```bash
+npx yakudoc status
+```
+
+`translations.json` を書き換えずに、翻訳済み・翻訳待ちの件数と割合を表示します。翻訳待ちのエントリは対象シンボルと原文つきで一覧されるため、次にどこを訳せばよいかがすぐ分かります。
+
+```text
+翻訳ファイル: /path/to/project/.yakudoc/translations.json
+進捗: 12 / 20 件 翻訳済み (60%) / 翻訳待ち 8 件
+
+翻訳待ち:
+  src/api/user.ts#fetchUser  Fetches user data from the API.
+  …
+```
+
 ### 翻訳の実行
 
 **オプション A：内蔵モデルで翻訳する**
