@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { after, describe, it } from "node:test";
-import { computeStatus, statusProject } from "../src/status";
+import { computeStatus, statusExitCode, statusProject } from "../src/status";
 import { writeTranslations } from "../src/translationsFile";
 import type { TranslationsFile } from "../src/types";
 
@@ -61,6 +61,20 @@ describe("computeStatus", () => {
       untranslated: 0,
       pending: [],
     });
+  });
+});
+
+describe("statusExitCode", () => {
+  it("--fail-on-pending 指定時、翻訳待ちがあれば 1", () => {
+    assert.equal(statusExitCode({ untranslated: 3 }, { failOnPending: true }), 1);
+  });
+
+  it("--fail-on-pending 指定でも翻訳待ちが無ければ 0", () => {
+    assert.equal(statusExitCode({ untranslated: 0 }, { failOnPending: true }), 0);
+  });
+
+  it("フラグ未指定なら翻訳待ちがあっても 0", () => {
+    assert.equal(statusExitCode({ untranslated: 3 }, { failOnPending: false }), 0);
   });
 });
 

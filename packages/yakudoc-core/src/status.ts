@@ -39,6 +39,18 @@ export function computeStatus(translations: TranslationsFile): StatusCounts {
   return { total, translated, untranslated: pending.length, pending };
 }
 
+/**
+ * status の終了コードを決める(純粋関数)。
+ * --fail-on-pending 指定時に翻訳待ちが残っていれば 1(CI の失敗ゲート用)。
+ * それ以外は 0。
+ */
+export function statusExitCode(
+  counts: Pick<StatusCounts, "untranslated">,
+  options: { failOnPending: boolean }
+): number {
+  return options.failOnPending && counts.untranslated > 0 ? 1 : 0;
+}
+
 export interface StatusOptions {
   /** プロジェクトルート。出力パスの基準 */
   projectDir: string;

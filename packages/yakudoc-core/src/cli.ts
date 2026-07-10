@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { extractProject } from "./extract";
-import { statusProject, type PendingEntry } from "./status";
+import { statusExitCode, statusProject, type PendingEntry } from "./status";
 import type { EngineRunOptions } from "./types";
 
 const USAGE = `使い方: yakudoc <command> [options]
@@ -16,6 +16,8 @@ const USAGE = `使い方: yakudoc <command> [options]
   -p, --project <path>   tsconfig.json のパス(既定: カレントから探索)
       --out <path>       translations.json のパス(既定: .yakudoc/translations.json)
       --prune            [extract] ソースから消えた原文のエントリを削除する
+      --json             [status] 進捗を機械可読な JSON で出力する
+      --fail-on-pending  [status] 翻訳待ちが残っていれば終了コード 1(CI 用)
       --engine <name>    [translate] prep(AI 用下準備)/ local(内蔵モデル)
       --apply <path>     [translate] 翻訳結果 JSON を translations.json に書き戻す
       --model-size <s>   [translate --engine local] small | large | auto
@@ -88,7 +90,11 @@ function formatPending(pending: PendingEntry[], limit = 20): string[] {
   return lines;
 }
 
-function runStatus(values: { out?: string }): void {
+function runStatus(values: {
+  out?: string;
+  json?: boolean;
+  "fail-on-pending"?: boolean;
+}): void {
   const summary = statusProject({
     projectDir: process.cwd(),
     outPath: values.out,
@@ -97,6 +103,18 @@ function runStatus(values: { out?: string }): void {
     throw new Error(
       "translations.json が見つかりません。先に `yakudoc extract` を実行してください。"
     );
+  }
+
+  process.exitCode = statusExitCode(summary, {
+    failOnPending: values["fail-on-pending"] ?? false,
+  });
+
+  if (values.json) {
+    const { total, translated, untranslated, pending } = summary;
+    console.log(
+      JSON.stringify({ total, translated, untranslated, pending }, null, 2)
+    );
+    return;
   }
 
   console.log(`翻訳ファイル: ${summary.outPath}`);
@@ -123,6 +141,8 @@ async function main(): Promise<void> {
       project: { type: "string", short: "p" },
       out: { type: "string" },
       prune: { type: "boolean", default: false },
+      json: { type: "boolean", default: false },
+      "fail-on-pending": { type: "boolean", default: false },
       engine: { type: "string" },
       apply: { type: "string" },
       model: { type: "string" },

@@ -21,6 +21,7 @@ export {
 } from "./placeholders";
 export {
   computeStatus,
+  statusExitCode,
   statusProject,
   type PendingEntry,
   type StatusCounts,
