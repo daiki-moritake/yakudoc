@@ -16,6 +16,9 @@ const USAGE = `使い方: yakudoc <command> [options]
       --prune            [extract] ソースから消えた原文のエントリを削除する
       --engine <name>    [translate] prep(AI 用下準備)/ local(内蔵モデル)
       --apply <path>     [translate] 翻訳結果 JSON を translations.json に書き戻す
+      --model-size <s>   [translate --engine local] small | large | auto
+                         (既定: auto。搭載メモリからモデルを自動選択)
+      --model <hf-id>    [translate --engine local] 使用モデルを明示指定
   -h, --help             このヘルプを表示する
 `;
 
@@ -32,6 +35,8 @@ async function runTranslate(values: {
   engine?: string;
   out?: string;
   apply?: string;
+  model?: string;
+  "model-size"?: string;
 }): Promise<void> {
   if (!values.engine) {
     throw new Error(
@@ -59,6 +64,8 @@ async function runTranslate(values: {
     projectDir: process.cwd(),
     translationsPath: values.out,
     applyPath: values.apply,
+    model: values.model,
+    modelSize: values["model-size"],
   });
 }
 
@@ -71,6 +78,8 @@ async function main(): Promise<void> {
       prune: { type: "boolean", default: false },
       engine: { type: "string" },
       apply: { type: "string" },
+      model: { type: "string" },
+      "model-size": { type: "string" },
       help: { type: "boolean", short: "h", default: false },
     },
   });

@@ -1,14 +1,26 @@
 import * as path from "node:path";
 import type { EngineRunOptions } from "yakudoc-core";
 import { translatePending } from "./engine";
-import { createLocalTranslator, DEFAULT_MODEL } from "./translator";
+import { resolveModel } from "./resolveModel";
+import { createLocalTranslator } from "./translator";
 
 export { translatePending, type MtSummary, type TranslateFn } from "./engine";
 export { createLocalTranslator, DEFAULT_MODEL } from "./translator";
+export {
+  resolveModel,
+  MODEL_TIERS,
+  AUTO_LARGE_MIN_GB,
+  type ModelSpec,
+  type ResolvedModel,
+} from "./resolveModel";
 
 /**
  * `yakudoc translate --engine local` のエントリポイント。
- * モデルは環境変数 YAKUDOC_MT_MODEL で差し替えられる。
+ *
+ * モデルは次の優先順位で決まる:
+ *   --model / YAKUDOC_MT_MODEL(明示) >
+ *   --model-size / YAKUDOC_MT_MODEL_SIZE(small|large|auto) >
+ *   auto(搭載メモリから判定)
  */
 export async function run(options: EngineRunOptions): Promise<void> {
   if (options.applyPath) {
@@ -22,11 +34,16 @@ export async function run(options: EngineRunOptions): Promise<void> {
     options.translationsPath ?? path.join(".yakudoc", "translations.json")
   );
 
-  const model = process.env.YAKUDOC_MT_MODEL || DEFAULT_MODEL;
-  console.log(`翻訳モデル: ${model}`);
-  console.log("(初回はモデルのダウンロードに数分かかることがあります)");
+  const resolved = resolveModel({
+    explicitModel: options.model ?? process.env.YAKUDOC_MT_MODEL,
+    size: options.modelSize ?? process.env.YAKUDOC_MT_MODEL_SIZE,
+  });
 
-  const translate = await createLocalTranslator(model);
+  console.log(`翻訳モデル: ${resolved.model}`);
+  console.log(`選択理由: ${resolved.reason}`);
+  console.log("(初回はモデルのダウンロードに時間がかかることがあります)");
+
+  const translate = await createLocalTranslator(resolved);
   const summary = await translatePending(translationsPath, translate, (message) =>
     console.log(message)
   );
