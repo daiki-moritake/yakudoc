@@ -88,6 +88,32 @@ describe("yakudoc.toggle", () => {
   });
 });
 
+describe("yakudoc.extract / yakudoc.showStatus", () => {
+  it("extract は yakudoc ターミナルで npx yakudoc extract を実行する", async () => {
+    const state = await activateWith({ hasTsExtension: true });
+    await state.runCommand("yakudoc.extract");
+
+    assert.equal(state.terminals.length, 1);
+    const terminal = state.terminals[0];
+    assert.equal(terminal.name, "yakudoc");
+    assert.ok(terminal.shown);
+    assert.deepEqual(terminal.sentText, ["npx yakudoc extract"]);
+  });
+
+  it("showStatus は既存の yakudoc ターミナルを使い回す", async () => {
+    const state = await activateWith({ hasTsExtension: true });
+    await state.runCommand("yakudoc.extract");
+    await state.runCommand("yakudoc.showStatus");
+
+    // 新しいターミナルは作らず、1 つを使い回す
+    assert.equal(state.terminals.length, 1);
+    assert.deepEqual(state.terminals[0].sentText, [
+      "npx yakudoc extract",
+      "npx yakudoc status",
+    ]);
+  });
+});
+
 describe("yakudoc.registerPlugin", () => {
   it("tsconfig.json にプラグインを追記し、再起動を提案して実行する", async () => {
     const dir = tempDir();

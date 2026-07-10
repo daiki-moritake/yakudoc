@@ -67,6 +67,15 @@ npm install --save-dev yakudoc-core yakudoc-ts-plugin
 
 Marketplace から「yakudoc」を検索してインストールすると、`tsconfig.json` への登録やステータスバーからの有効/無効切り替えが自動化されます。
 
+コマンドパレット（`Cmd/Ctrl+Shift+P`）からは、ターミナルを開かずに次の操作を実行できます。
+
+| コマンド | 動作 |
+|---|---|
+| `yakudoc: 翻訳対象を抽出 (extract)` | `npx yakudoc extract` を統合ターミナルで実行する |
+| `yakudoc: 翻訳の進捗を表示 (status)` | `npx yakudoc status` を統合ターミナルで実行する |
+| `yakudoc: 翻訳表示を切り替え (JP/EN)` | 原文表示と日本語訳表示を切り替える |
+| `yakudoc: tsconfig.json にプラグインを登録` | プラグインを未登録の `tsconfig.json` に追記する |
+
 ## 使い方
 
 ### 翻訳対象の抽出

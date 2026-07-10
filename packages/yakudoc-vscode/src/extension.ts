@@ -50,6 +50,21 @@ async function registerInto(uris: vscode.Uri[]): Promise<number> {
   return changedCount;
 }
 
+const TERMINAL_NAME = "yakudoc";
+
+/**
+ * yakudoc CLI を統合ターミナルで実行する。
+ * 出力(抽出件数や進捗一覧)をそのままユーザーに見せ、再実行もできるよう
+ * 専用ターミナルを 1 つだけ使い回す。
+ */
+function runInTerminal(command: string): void {
+  const terminal =
+    vscode.window.terminals.find((t) => t.name === TERMINAL_NAME) ??
+    vscode.window.createTerminal(TERMINAL_NAME);
+  terminal.show();
+  terminal.sendText(command);
+}
+
 async function offerTsServerRestart(): Promise<void> {
   const answer = await vscode.window.showInformationMessage(
     "yakudoc: プラグインを登録しました。反映には TS Server の再起動が必要です。",
@@ -160,6 +175,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await config.update("enabled", !isEnabled(), target);
     }),
     vscode.commands.registerCommand("yakudoc.registerPlugin", registerPluginCommand),
+    vscode.commands.registerCommand("yakudoc.extract", () =>
+      runInTerminal("npx yakudoc extract")
+    ),
+    vscode.commands.registerCommand("yakudoc.showStatus", () =>
+      runInTerminal("npx yakudoc status")
+    ),
     vscode.workspace.onDidChangeConfiguration(async (event) => {
       if (event.affectsConfiguration("yakudoc.enabled")) {
         updateStatusBar();

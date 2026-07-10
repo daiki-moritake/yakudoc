@@ -28,6 +28,14 @@
       {
         "command": "yakudoc.registerPlugin",
         "title": "yakudoc: tsconfig.json にプラグインを登録"
+      },
+      {
+        "command": "yakudoc.extract",
+        "title": "yakudoc: 翻訳対象を抽出 (extract)"
+      },
+      {
+        "command": "yakudoc.showStatus",
+        "title": "yakudoc: 翻訳の進捗を表示 (status)"
       }
     ],
     "configuration": {
