@@ -1,11 +1,9 @@
 import type { TranslateFn } from "./engine";
 import { normalizeJapaneseOutput } from "./postprocess";
+import { MODEL_TIERS, type ModelSpec } from "./resolveModel";
 
-export const DEFAULT_MODEL = "Xenova/nllb-200-distilled-600M";
-
-/** NLLB 系モデルで使う言語コード */
-const NLLB_SOURCE_LANG = "eng_Latn";
-const NLLB_TARGET_LANG = "jpn_Jpan";
+/** 既定の小モデル(後方互換のため公開) */
+export const DEFAULT_MODEL = MODEL_TIERS.small.model;
 
 // @huggingface/transformers は ESM 専用パッケージのため、CommonJS から
 // 読み込むには本物の dynamic import が必要になる。tsc(module: commonjs)は
@@ -17,21 +15,23 @@ const dynamicImport = new Function(
 
 /**
  * transformers.js の翻訳パイプラインを起動して TranslateFn を返す。
- * 初回はモデル(既定の NLLB-200 蒸留版で数百 MB)のダウンロードが走る。
+ * 初回はモデルのダウンロードが走る(small で数百 MB、large は 1GB 超)。
+ *
+ * 言語コード(srcLang/tgtLang)はモデルのアーキテクチャで異なるため
+ * ModelSpec で受け取る(NLLB: eng_Latn/jpn_Jpan、mBART: en_XX/ja_XX)。
  */
 export async function createLocalTranslator(
-  model: string = DEFAULT_MODEL
+  spec: ModelSpec = MODEL_TIERS.small
 ): Promise<TranslateFn> {
   const { pipeline } = await dynamicImport("@huggingface/transformers");
-  // dtype 未指定だと fp32(NLLB 600M で数 GB)を取得してしまう。
+  // dtype 未指定だと fp32(数 GB)を取得してしまう。
   // CPU 実行前提のツールなので 8bit 量子化版を使う。
-  const translator = (await pipeline("translation", model, {
+  const translator = (await pipeline("translation", spec.model, {
     dtype: "q8",
   })) as unknown as (
     texts: string[],
     options?: Record<string, unknown>
   ) => Promise<unknown>;
-  const isNllb = model.toLowerCase().includes("nllb");
 
   // 各原文を個別に翻訳する。バッチ翻訳は 1 つの max_new_tokens を全文で
   // 共有してしまうが、長さ上限は原文ごとに変えたいため。
@@ -48,9 +48,11 @@ export async function createLocalTranslator(
         const options: Record<string, unknown> = {
           max_new_tokens: estimateMaxTokens(text),
         };
-        if (isNllb) {
-          options.src_lang = NLLB_SOURCE_LANG;
-          options.tgt_lang = NLLB_TARGET_LANG;
+        if (spec.srcLang) {
+          options.src_lang = spec.srcLang;
+        }
+        if (spec.tgtLang) {
+          options.tgt_lang = spec.tgtLang;
         }
         const outputs = await translator([text], options);
         const first = Array.isArray(outputs) ? outputs[0] : outputs;

@@ -98,7 +98,23 @@ npm install --save-dev yakudoc-mt
 npx yakudoc translate --engine local
 ```
 
-オフライン・API キー不要で `translations.json` に直接書き込まれます。オープンウェイトの翻訳モデル（既定は NLLB-200 蒸留版）を使うため、精度よりも手軽さを優先する場合に向いています。初回はモデルのダウンロードが走ります。
+オフライン・API キー不要で `translations.json` に直接書き込まれます。オープンウェイトの翻訳モデルを使うため、精度よりも手軽さを優先する場合に向いています。初回はモデルのダウンロードが走ります。
+
+モデルは PC のリソースに合わせて切り替えられます。既定は `auto` で、搭載メモリからサイズを自動選択します。
+
+```bash
+npx yakudoc translate --engine local --model-size small   # NLLB-200 蒸留 600M（軽量・高速）
+npx yakudoc translate --engine local --model-size large   # mBART-50（高品質・要メモリ）
+npx yakudoc translate --engine local --model <HF のモデル id>  # 使用モデルを明示指定
+```
+
+| サイズ | モデル | 目安 |
+|---|---|---|
+| `small` | NLLB-200 蒸留 600M | 軽量・高速。ダウンロード数百 MB |
+| `large` | mBART-50 | 訳が自然になりやすい。ダウンロード 1GB 超・メモリと時間を要する |
+| `auto`（既定） | 搭載メモリ 16GB 以上で `large`、未満で `small` | — |
+
+環境変数 `YAKUDOC_MT_MODEL_SIZE`（`small`/`large`/`auto`）や `YAKUDOC_MT_MODEL`（モデル id 明示）でも指定できます。
 
 **オプション B：任意の AI に翻訳させる**
 

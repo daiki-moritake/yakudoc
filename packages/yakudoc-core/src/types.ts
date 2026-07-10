@@ -22,4 +22,8 @@ export interface EngineRunOptions {
   translationsPath?: string;
   /** 翻訳結果 JSON を書き戻す場合、そのファイルのパス */
   applyPath?: string;
+  /** yakudoc-mt: 使用するモデルの HF id を明示する(modelSize より優先) */
+  model?: string;
+  /** yakudoc-mt: モデルの大きさ。small | large | auto(既定は auto) */
+  modelSize?: string;
 }
