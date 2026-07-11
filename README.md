@@ -115,6 +115,13 @@ npx yakudoc status
   …
 ```
 
+スクリプトや CI から使う場合は `--json` で機械可読な出力に、`--fail-on-pending` で翻訳待ちが残っているときに終了コード 1 を返せます。
+
+```bash
+npx yakudoc status --json                 # { total, translated, untranslated, pending } を出力
+npx yakudoc status --fail-on-pending       # 未翻訳が残っていれば exit 1(翻訳漏れの検知に)
+```
+
 ### 翻訳の実行
 
 **オプション A：内蔵モデルで翻訳する**
