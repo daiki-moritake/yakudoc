@@ -21,7 +21,7 @@ English JSDoc is precise, but reading it costs a mental translation every time. 
 
 VSCode's JS/TS language features (hover, completion details, signature help) are all produced by `tsserver`. yakudoc registers itself as a **Language Service Plugin** on `tsserver` and rewrites the `documentation` / `tags` returned by `getQuickInfoAtPosition`, `getCompletionEntryDetails`, and friends with the translated text.
 
-```
+```text
 [your code]
       │
       ▼
@@ -41,7 +41,7 @@ Because it rewrites the output of TypeScript itself rather than adding a separat
 This is a monorepo consisting of the following packages.
 
 | Package | Role |
-|---|---|
+| --- | --- |
 | `yakudoc-core` | Extracts JSDoc from the AST and manages the translation file |
 | `yakudoc-ts-plugin` | The `tsserver` plugin that swaps the displayed documentation |
 | `yakudoc-vscode` | VSCode extension: auto-registers the plugin in `tsconfig.json`, toggle UI, etc. |
@@ -85,7 +85,8 @@ Search for "yakudoc" in the Marketplace. The extension automates tsconfig.json r
 From the command palette (`Cmd/Ctrl+Shift+P`) you can run the following without opening a terminal:
 
 | Command | Action |
-|---|---|
+| --- | --- |
+| `yakudoc: 導入を実行 (init)` | Runs `npx yakudoc init` in the integrated terminal |
 | `yakudoc: 翻訳対象を抽出 (extract)` | Runs `npx yakudoc extract` in the integrated terminal |
 | `yakudoc: 翻訳の進捗を表示 (status)` | Runs `npx yakudoc status` in the integrated terminal |
 | `yakudoc: 翻訳表示を切り替え (JP/EN)` | Toggles between original and translated display |
@@ -139,7 +140,7 @@ npx yakudoc status --fail-on-pending       # exit 1 if anything is untranslated 
 
 ### Translate
 
-**Option A: use the built-in model**
+#### Option A: use the built-in model
 
 ```bash
 npm install --save-dev yakudoc-mt
@@ -157,14 +158,14 @@ npx yakudoc translate --engine local --model <HF model id>  # pin an explicit mo
 ```
 
 | Size | Model | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `small` | NLLB-200 distilled 600M | Light and fast. Download is a few hundred MB |
 | `large` | mBART-50 | More natural output. 1GB+ download, needs memory and time |
 | `auto` (default) | `large` with 16GB+ RAM, otherwise `small` | — |
 
 The environment variables `YAKUDOC_MT_MODEL_SIZE` (`small`/`large`/`auto`) and `YAKUDOC_MT_MODEL` (explicit model id) work as well.
 
-**Option B: let any AI translate**
+#### Option B: let any AI translate
 
 First generate the prep files:
 
