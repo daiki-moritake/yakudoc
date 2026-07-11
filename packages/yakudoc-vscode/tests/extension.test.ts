@@ -88,7 +88,15 @@ describe("yakudoc.toggle", () => {
   });
 });
 
-describe("yakudoc.extract / yakudoc.showStatus", () => {
+describe("yakudoc.init / yakudoc.extract / yakudoc.showStatus", () => {
+  it("init は yakudoc ターミナルで npx yakudoc init を実行する", async () => {
+    const state = await activateWith({ hasTsExtension: true });
+    await state.runCommand("yakudoc.init");
+
+    assert.equal(state.terminals.length, 1);
+    assert.deepEqual(state.terminals[0].sentText, ["npx yakudoc init"]);
+  });
+
   it("extract は yakudoc ターミナルで npx yakudoc extract を実行する", async () => {
     const state = await activateWith({ hasTsExtension: true });
     await state.runCommand("yakudoc.extract");

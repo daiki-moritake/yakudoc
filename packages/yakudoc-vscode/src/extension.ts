@@ -175,6 +175,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await config.update("enabled", !isEnabled(), target);
     }),
     vscode.commands.registerCommand("yakudoc.registerPlugin", registerPluginCommand),
+    vscode.commands.registerCommand("yakudoc.init", () =>
+      runInTerminal("npx yakudoc init")
+    ),
     vscode.commands.registerCommand("yakudoc.extract", () =>
       runInTerminal("npx yakudoc extract")
     ),
