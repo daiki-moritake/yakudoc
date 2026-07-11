@@ -3,6 +3,24 @@
   "version": "0.1.0",
   "description": "Generates placeholder-protected source files and a glossary so any LLM can translate yakudoc entries, then writes the results back",
   "license": "MIT",
+  "keywords": [
+    "llm",
+    "prompt",
+    "glossary",
+    "jsdoc",
+    "translation",
+    "japanese",
+    "claude"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daiki-moritake/yakudoc.git",
+    "directory": "packages/yakudoc-ai-prep"
+  },
+  "homepage": "https://github.com/daiki-moritake/yakudoc#readme",
+  "bugs": {
+    "url": "https://github.com/daiki-moritake/yakudoc/issues"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [

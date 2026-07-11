@@ -22,6 +22,10 @@
   "contributes": {
     "commands": [
       {
+        "command": "yakudoc.init",
+        "title": "yakudoc: 導入を実行 (init)"
+      },
+      {
         "command": "yakudoc.toggle",
         "title": "yakudoc: 翻訳表示を切り替え (JP/EN)"
       },

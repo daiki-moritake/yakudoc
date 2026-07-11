@@ -1,14 +1,18 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  DEFAULT_TARGET_LANG,
   protectText,
   readTranslations,
+  resolveLanguage,
   type EngineRunOptions,
+  type LanguageSpec,
 } from "yakudoc-core";
 
 /** .yakudoc/ai/request.json の形式 */
 export interface RequestFile {
-  targetLanguage: "ja";
+  /** 翻訳先の言語コード(例: "ja") */
+  targetLanguage: string;
   entries: Record<
     string,
     {
@@ -68,7 +72,8 @@ export function prepare(options: EngineRunOptions): PrepareSummary | undefined {
     return undefined;
   }
 
-  const request: RequestFile = { targetLanguage: "ja", entries: {} };
+  const lang = resolveLanguage(options.targetLang ?? DEFAULT_TARGET_LANG);
+  const request: RequestFile = { targetLanguage: lang.code, entries: {} };
   for (const [hash, entry] of pending) {
     const protectedText = protectText(entry.original);
     request.entries[hash] = {
@@ -83,14 +88,19 @@ export function prepare(options: EngineRunOptions): PrepareSummary | undefined {
   const requestPath = path.join(aiDir, "request.json");
   const promptPath = path.join(aiDir, "prompt.md");
   fs.writeFileSync(requestPath, JSON.stringify(request, null, 2) + "\n");
-  fs.writeFileSync(promptPath, buildPrompt(request, glossary));
+  fs.writeFileSync(promptPath, buildPrompt(request, glossary, lang));
 
   return { pending: pending.length, requestPath, promptPath, glossaryPath };
 }
 
+/**
+ * LLM への依頼文を組み立てる。翻訳先が日本語なら日本語の依頼文、
+ * それ以外は英語の依頼文にする(利用者の言語が分からないため)。
+ */
 function buildPrompt(
   request: RequestFile,
-  glossary: Record<string, string>
+  glossary: Record<string, string>,
+  lang: LanguageSpec
 ): string {
   const sources: Record<string, string> = {};
   for (const [hash, entry] of Object.entries(request.entries)) {
@@ -98,10 +108,17 @@ function buildPrompt(
   }
 
   const glossaryEntries = Object.entries(glossary);
+  const glossaryList = glossaryEntries
+    .map(([source, target]) => `- ${source} → ${target}`)
+    .join("\n");
+
+  if (lang.code !== "ja") {
+    return buildEnglishPrompt(sources, glossaryList, lang);
+  }
+
   const glossarySection =
-    glossaryEntries.length > 0
-      ? glossaryEntries.map(([en, ja]) => `- ${en} → ${ja}`).join("\n")
-      : "(未設定。`.yakudoc/glossary.json` に \"英語\": \"日本語\" の形式で追加すると、ここに反映されます)";
+    glossaryList ||
+    "(未設定。`.yakudoc/glossary.json` に \"英語\": \"日本語\" の形式で追加すると、ここに反映されます)";
 
   return `# yakudoc 翻訳依頼
 
@@ -128,6 +145,47 @@ ${JSON.stringify(sources, null, 2)}
 ## 翻訳結果の反映
 
 返ってきた JSON を \`.yakudoc/ai/response.json\` に保存し、次のコマンドで書き戻します:
+
+\`\`\`bash
+npx yakudoc translate --engine prep --apply .yakudoc/ai/response.json
+\`\`\`
+`;
+}
+
+function buildEnglishPrompt(
+  sources: Record<string, string>,
+  glossaryList: string,
+  lang: LanguageSpec
+): string {
+  const glossarySection =
+    glossaryList ||
+    '(empty — add `"source term": "translation"` pairs to `.yakudoc/glossary.json` and they will be listed here)';
+
+  return `# yakudoc translation request
+
+The JSON below lists JSDoc comments (English) extracted from a TypeScript/JavaScript project.
+Translate each value into **${lang.name}** and return a JSON object with **the same keys**.
+
+## Rules
+
+- Return only a JSON object of the form \`{ "<key>": "<translation>", ... }\`, wrapped in a code block
+- Tokens such as \`<ph0>\` \`<ph1>\` protect code, links, and URLs. Do **not** translate or remove them; keep each one at the corresponding position in the translation
+- Keep each translation concise and natural as a one-line JSDoc description
+- Follow the glossary for technical terms. Common technical terms not in the glossary (callback, Promise, …) may stay untranslated
+
+## Glossary
+
+${glossarySection}
+
+## Source texts
+
+\`\`\`json
+${JSON.stringify(sources, null, 2)}
+\`\`\`
+
+## Applying the result
+
+Save the returned JSON as \`.yakudoc/ai/response.json\`, then write it back with:
 
 \`\`\`bash
 npx yakudoc translate --engine prep --apply .yakudoc/ai/response.json

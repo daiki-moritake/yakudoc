@@ -1,5 +1,6 @@
+import { DEFAULT_TARGET_LANG } from "yakudoc-core";
 import type { TranslateFn } from "./engine";
-import { normalizeJapaneseOutput } from "./postprocess";
+import { postprocessFor } from "./postprocess";
 import { MODEL_TIERS, type ModelSpec } from "./resolveModel";
 
 /** 既定の小モデル(後方互換のため公開) */
@@ -21,8 +22,10 @@ const dynamicImport = new Function(
  * ModelSpec で受け取る(NLLB: eng_Latn/jpn_Jpan、mBART: en_XX/ja_XX)。
  */
 export async function createLocalTranslator(
-  spec: ModelSpec = MODEL_TIERS.small
+  spec: ModelSpec = MODEL_TIERS.small,
+  targetLang: string = DEFAULT_TARGET_LANG
 ): Promise<TranslateFn> {
+  const postprocess = postprocessFor(targetLang);
   const { pipeline } = await dynamicImport("@huggingface/transformers");
   // dtype 未指定だと fp32(数 GB)を取得してしまう。
   // CPU 実行前提のツールなので 8bit 量子化版を使う。
@@ -59,8 +62,8 @@ export async function createLocalTranslator(
         const raw = String(
           (first as { translation_text?: unknown }).translation_text ?? ""
         );
-        // 保護トークン復元前に日本語出力を整える(句読点の全角化など)
-        return normalizeJapaneseOutput(raw);
+        // 保護トークン復元前に出力を整える(日本語なら句読点の全角化など)
+        return postprocess(raw);
       })
     );
 }

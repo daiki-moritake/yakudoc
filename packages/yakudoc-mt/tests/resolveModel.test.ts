@@ -57,4 +57,38 @@ describe("resolveModel", () => {
     const r = resolveModel({ explicitModel: "x/y-nllb", size: "large" }, 1 * GB);
     assert.equal(r.model, "x/y-nllb");
   });
+
+  it("targetLang でモデルの言語コードが切り替わる(NLLB)", () => {
+    const r = resolveModel({ size: "small", targetLang: "de" }, 4 * GB);
+    assert.equal(r.srcLang, "eng_Latn");
+    assert.equal(r.tgtLang, "deu_Latn");
+    assert.equal(r.targetLang, "de");
+  });
+
+  it("targetLang でモデルの言語コードが切り替わる(mBART)", () => {
+    const r = resolveModel({ size: "large", targetLang: "ko" }, 4 * GB);
+    assert.equal(r.srcLang, "en_XX");
+    assert.equal(r.tgtLang, "ko_KR");
+  });
+
+  it("明示モデルにも targetLang が効く", () => {
+    const r = resolveModel(
+      { explicitModel: "custom/nllb-tuned", targetLang: "fr" },
+      4 * GB
+    );
+    assert.equal(r.tgtLang, "fra_Latn");
+  });
+
+  it("targetLang 未指定は従来どおり日本語のコードになる", () => {
+    const r = resolveModel({ size: "small" }, 4 * GB);
+    assert.equal(r.tgtLang, "jpn_Jpan");
+    assert.equal(r.targetLang, "ja");
+  });
+
+  it("未対応の targetLang はエラーにする", () => {
+    assert.throws(
+      () => resolveModel({ size: "small", targetLang: "xx" }, 4 * GB),
+      /未対応の言語コード/
+    );
+  });
 });

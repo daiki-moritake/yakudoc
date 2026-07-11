@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { normalizeJapaneseOutput } from "../src/postprocess";
+import { normalizeJapaneseOutput, postprocessFor } from "../src/postprocess";
 
 describe("normalizeJapaneseOutput", () => {
   it("日本語文字に続く ASCII の読点・句点を全角にする", () => {
@@ -51,6 +51,28 @@ describe("normalizeJapaneseOutput", () => {
     assert.equal(
       normalizeJapaneseOutput("データを取得するためのハンドラー."),
       "データを取得するためのハンドラー。"
+    );
+  });
+});
+
+describe("postprocessFor", () => {
+  it("ja では句読点の全角化を行う", () => {
+    assert.equal(
+      postprocessFor("ja")("2つの数字を足して,合計を返します."),
+      "2つの数字を足して、合計を返します。"
+    );
+  });
+
+  it("ja 以外はトリムのみで句読点に触れない", () => {
+    // 中国語も CJK 文字を使うが、ASCII カンマの変換先が日本語と異なるため
+    // 全角化は適用されない
+    assert.equal(
+      postprocessFor("zh")("  从 API 获取用户数据,并返回结果.  "),
+      "从 API 获取用户数据,并返回结果."
+    );
+    assert.equal(
+      postprocessFor("de")("  Ruft Benutzerdaten von der API ab.  "),
+      "Ruft Benutzerdaten von der API ab."
     );
   });
 });

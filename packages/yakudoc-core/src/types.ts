@@ -26,4 +26,6 @@ export interface EngineRunOptions {
   model?: string;
   /** yakudoc-mt: モデルの大きさ。small | large | auto(既定は auto) */
   modelSize?: string;
+  /** 翻訳先の言語コード(languages.ts で解決済み。省略時: ja) */
+  targetLang?: string;
 }

@@ -3,6 +3,25 @@
   "version": "0.1.0",
   "description": "Translates yakudoc entries offline with an open-weight machine translation model (transformers.js)",
   "license": "MIT",
+  "keywords": [
+    "machine-translation",
+    "transformers.js",
+    "nllb",
+    "mbart",
+    "jsdoc",
+    "translation",
+    "japanese",
+    "offline"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daiki-moritake/yakudoc.git",
+    "directory": "packages/yakudoc-mt"
+  },
+  "homepage": "https://github.com/daiki-moritake/yakudoc#readme",
+  "bugs": {
+    "url": "https://github.com/daiki-moritake/yakudoc/issues"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [

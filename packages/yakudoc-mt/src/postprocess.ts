@@ -22,3 +22,15 @@ export function normalizeJapaneseOutput(text: string): string {
     .replace(SPACE_AFTER_JA_PUNCT, "$1")
     .trim();
 }
+
+/**
+ * 翻訳先言語に応じた後処理を返す。
+ *
+ * 句読点の全角化は日本語専用(中国語も CJK 文字を使うが ASCII カンマの
+ * 変換先が異なる)。日本語以外はトリムのみ行う。
+ */
+export function postprocessFor(targetLang: string): (text: string) => string {
+  return targetLang === "ja"
+    ? normalizeJapaneseOutput
+    : (text: string): string => text.trim();
+}

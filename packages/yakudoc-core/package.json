@@ -3,6 +3,25 @@
   "version": "0.1.0",
   "description": "Extracts JSDoc comments into a translation file (.yakudoc/translations.json) and manages incremental re-extraction",
   "license": "MIT",
+  "keywords": [
+    "jsdoc",
+    "tsdoc",
+    "translation",
+    "japanese",
+    "i18n",
+    "typescript",
+    "documentation",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daiki-moritake/yakudoc.git",
+    "directory": "packages/yakudoc-core"
+  },
+  "homepage": "https://github.com/daiki-moritake/yakudoc#readme",
+  "bugs": {
+    "url": "https://github.com/daiki-moritake/yakudoc/issues"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -16,6 +35,7 @@
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
+    "jsonc-parser": "^3.3.1",
     "typescript": "^5.6.0"
   },
   "devDependencies": {

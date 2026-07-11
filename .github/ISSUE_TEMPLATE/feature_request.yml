@@ -1,0 +1,22 @@
+name: 機能提案 / Feature request
+description: 新機能や改善のアイデア / Suggest a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 解決したい課題 / Problem to solve
+      description: どんな場面で困っているか / What situation is this for?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提案内容 / Proposal
+      description: どう解決したいか(CLI の例などがあると助かります)/ How should it work?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 代替案 / Alternatives considered
