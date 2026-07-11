@@ -1,0 +1,43 @@
+name: バグ報告 / Bug report
+description: 動作しない・期待と違う挙動の報告 / Report something that isn't working
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要 / Summary
+      description: 何が起きたかを簡潔に / What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順 / Steps to reproduce
+      placeholder: |
+        1. `npx yakudoc init` を実行
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待される動作 / Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 環境 / Environment
+      placeholder: |
+        - OS: macOS 15
+        - Node.js: 22.x
+        - VSCode: 1.9x
+        - TypeScript: 5.x
+        - yakudoc: 0.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: ログ・スクリーンショット / Logs & screenshots
+      description: あれば貼ってください / If available

@@ -1,5 +1,10 @@
 # yakudoc
 
+[![CI](https://github.com/daiki-moritake/yakudoc/actions/workflows/ci.yml/badge.svg)](https://github.com/daiki-moritake/yakudoc/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
+日本語 | [English](./README.en.md)
+
 JSDoc コメントを日本語化し、VSCode の言語機能（ホバー・補完・シグネチャヘルプ）にその翻訳を割り込ませるためのツールセットです。
 
 コード自体は書き換えません。原文の JSDoc はそのままに、`tsserver` プラグインを通じて **エディタ上の表示だけ** を日本語訳に差し替えます。
@@ -53,7 +58,15 @@ VSCode の JS/TS 言語機能（ホバー表示・補完の説明・シグネチ
 npm install --save-dev yakudoc-core yakudoc-ts-plugin
 ```
 
-### 2. tsconfig.json にプラグインを登録
+### 2. init を実行
+
+```bash
+npx yakudoc init
+```
+
+tsconfig.json への `yakudoc-ts-plugin` の登録（コメントを保持したまま追記）と、初回の抽出（extract）をまとめて実行します。再実行しても安全です（登録済みならスキップし、既存の訳文は保持されます）。
+
+手動で設定したい場合は、tsconfig.json に次を追記してください。
 
 ```jsonc
 {
@@ -62,6 +75,8 @@ npm install --save-dev yakudoc-core yakudoc-ts-plugin
   }
 }
 ```
+
+登録後、VSCode ではコマンドパレットから「TypeScript: Restart TS Server」を実行すると反映されます。
 
 ### 3. VSCode 拡張の導入（任意・推奨）
 
@@ -188,7 +203,11 @@ npx yakudoc translate --engine prep --apply .yakudoc/ai/response.json
 - Python の docstring や、Pylance のようなクローズドソースの言語サーバーには対応していません
 - 翻訳結果の品質は使用する翻訳エンジン（内蔵モデル or 外部 AI）に依存します
 
+## コントリビュート
+
+バグ報告・機能提案・プルリクエストを歓迎します。開発環境のセットアップ手順やテストの実行方法は [CONTRIBUTING.md](./CONTRIBUTING.md) を参照してください。
+
 ## ライセンス
 
-MIT
+[MIT](./LICENSE)
 
