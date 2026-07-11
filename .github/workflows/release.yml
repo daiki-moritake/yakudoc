@@ -1,0 +1,46 @@
+name: Release
+
+# v0.1.0 のようなタグを push すると、公開対象パッケージを npm に publish する。
+# 事前準備: リポジトリの Secrets に NPM_TOKEN(publish 権限つき)を登録しておく。
+# 手順の詳細は RELEASING.md を参照。
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm provenance(公開物とソースの対応を証明する署名)に必要
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: npm ci
+
+      - name: Build (依存順にビルド。publish 対象は dist のみ)
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      # yakudoc-core を先頭に、依存される側から順に publish する
+      - name: Publish to npm
+        run: |
+          npm publish --provenance --access public -w yakudoc-core
+          npm publish --provenance --access public -w yakudoc-ts-plugin
+          npm publish --provenance --access public -w yakudoc-ai-prep
+          npm publish --provenance --access public -w yakudoc-mt
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
