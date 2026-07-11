@@ -192,6 +192,21 @@ npx yakudoc translate --engine prep --apply .yakudoc/ai/response.json
 
 `translations.json` を保存すると、`tsserver` プラグインがファイルの変更を自動検知して表示に反映します。エディタの再起動は不要です。
 
+## 翻訳先言語を変える
+
+既定の翻訳先は日本語ですが、ほかの言語も指定できます。
+
+```bash
+npx yakudoc init --lang ko                       # 翻訳先を韓国語にして導入
+npx yakudoc translate --engine local --lang de   # この実行だけドイツ語に
+```
+
+`init` の `--lang` は `.yakudoc/config.json` に保存され、以後の `translate` はそれを使います。`translate` の `--lang` は一時的な上書きです。
+
+対応言語: `ja` `ko` `zh` `de` `fr` `es` `pt` `it` `nl` `sv` `fi` `pl` `cs` `uk` `ru` `tr` `ar` `hi` `id` `vi` `th`（内蔵モデルの NLLB-200 / mBART-50 が両対応の言語）
+
+翻訳先が日本語以外のとき、`--engine prep` が生成する依頼文（prompt.md）は英語になります。日本語向けの句読点正規化などの後処理も日本語のときだけ適用されます。
+
 ## 差分翻訳
 
 翻訳のキーは原文コメントのハッシュ値です。コードを編集して JSDoc の原文が変わった場合、そのエントリだけが自動的に「翻訳待ち」に戻ります。無関係な変更で翻訳全体が失効することはありません。
