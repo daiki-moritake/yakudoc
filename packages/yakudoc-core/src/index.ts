@@ -1,3 +1,17 @@
+export {
+  configPathBeside,
+  readConfig,
+  resolveTargetLang,
+  writeConfig,
+  type YakudocConfig,
+} from "./config";
+export {
+  DEFAULT_TARGET_LANG,
+  LANGUAGES,
+  resolveLanguage,
+  supportedLanguageCodes,
+  type LanguageSpec,
+} from "./languages";
 export { hashText, normalizeText } from "./normalize";
 export {
   extractFromSourceFile,

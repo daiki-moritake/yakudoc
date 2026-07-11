@@ -136,4 +136,46 @@ describe("initProject", () => {
       /tsconfig\.json が見つかりません/
     );
   });
+
+  it("--lang 指定で config.json に翻訳先言語を保存する", () => {
+    const dir = makeProject(`{\n  "compilerOptions": {\n    "strict": true\n  }\n}\n`);
+
+    const summary = initProject({ projectDir: dir, targetLang: "de" });
+
+    assert.equal(summary.targetLang, "de");
+    assert.equal(summary.configWritten, true);
+    const configPath = path.join(dir, ".yakudoc", "config.json");
+    assert.deepEqual(JSON.parse(fs.readFileSync(configPath, "utf8")), {
+      targetLang: "de",
+    });
+
+    // 言語未指定で再実行しても config.json の言語が有効なまま
+    const second = initProject({ projectDir: dir });
+    assert.equal(second.targetLang, "de");
+    assert.equal(second.configWritten, false);
+  });
+
+  it("言語未指定なら config.json を作らず既定の ja になる", () => {
+    const dir = makeProject(`{\n  "compilerOptions": {\n    "strict": true\n  }\n}\n`);
+    const summary = initProject({ projectDir: dir });
+    assert.equal(summary.targetLang, "ja");
+    assert.equal(summary.configWritten, false);
+    assert.equal(
+      fs.existsSync(path.join(dir, ".yakudoc", "config.json")),
+      false
+    );
+  });
+
+  it("未対応の言語コードは tsconfig を書き換える前にエラーにする", () => {
+    const tsconfigText = `{\n  "compilerOptions": {\n    "strict": true\n  }\n}\n`;
+    const dir = makeProject(tsconfigText);
+    assert.throws(
+      () => initProject({ projectDir: dir, targetLang: "xx" }),
+      /未対応の言語コード/
+    );
+    assert.equal(
+      fs.readFileSync(path.join(dir, "tsconfig.json"), "utf8"),
+      tsconfigText
+    );
+  });
 });

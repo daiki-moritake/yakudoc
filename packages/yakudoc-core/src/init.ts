@@ -2,7 +2,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as ts from "typescript";
 import { applyEdits, modify, parse } from "jsonc-parser";
+import { configPathBeside, readConfig, resolveTargetLang, writeConfig } from "./config";
 import { extractProject, type ExtractSummary } from "./extract";
+import { resolveLanguage } from "./languages";
 
 export const PLUGIN_NAME = "yakudoc-ts-plugin";
 
@@ -44,6 +46,8 @@ export interface InitOptions {
   tsconfigPath?: string;
   /** translations.json の出力先(既定: .yakudoc/translations.json) */
   outPath?: string;
+  /** 翻訳先の言語コード。指定すると .yakudoc/config.json に保存される */
+  targetLang?: string;
 }
 
 export interface InitSummary {
@@ -53,6 +57,10 @@ export interface InitSummary {
   pluginRegistered: boolean;
   /** 初回 extract の結果 */
   extract: ExtractSummary;
+  /** 有効な翻訳先言語コード(--lang > config.json > 既定 ja) */
+  targetLang: string;
+  /** 今回 config.json に翻訳先言語を保存したか */
+  configWritten: boolean;
 }
 
 /**
@@ -60,11 +68,16 @@ export interface InitSummary {
  *
  * 1. tsconfig.json に yakudoc-ts-plugin を登録する(登録済みなら何もしない)
  * 2. extract を実行して .yakudoc/translations.json を生成する
+ * 3. targetLang 指定時は .yakudoc/config.json に翻訳先言語を保存する
  *
- * どちらの手順も冪等で、既存の訳文や tsconfig のコメントは保持される。
+ * いずれの手順も冪等で、既存の訳文や tsconfig のコメントは保持される。
  */
 export function initProject(options: InitOptions): InitSummary {
   const projectDir = path.resolve(options.projectDir);
+  // tsconfig を書き換える前に言語コードを検証する
+  const explicitLang = options.targetLang
+    ? resolveLanguage(options.targetLang).code
+    : undefined;
   const configPath = options.tsconfigPath
     ? path.resolve(projectDir, options.tsconfigPath)
     : ts.findConfigFile(projectDir, ts.sys.fileExists, "tsconfig.json");
@@ -87,9 +100,20 @@ export function initProject(options: InitOptions): InitSummary {
     outPath: options.outPath,
   });
 
+  const yakudocConfigPath = configPathBeside(extract.outPath);
+  if (explicitLang) {
+    writeConfig(yakudocConfigPath, {
+      ...readConfig(yakudocConfigPath),
+      targetLang: explicitLang,
+    });
+  }
+
   return {
     tsconfigPath: configPath,
     pluginRegistered: changed,
     extract,
+    targetLang:
+      explicitLang ?? resolveTargetLang(undefined, yakudocConfigPath),
+    configWritten: explicitLang !== undefined,
   };
 }

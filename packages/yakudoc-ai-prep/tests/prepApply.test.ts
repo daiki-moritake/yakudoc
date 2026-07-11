@@ -89,6 +89,53 @@ describe("prepare", () => {
     tempDirs.push(dir);
     assert.throws(() => prepare({ projectDir: dir }), /extract/);
   });
+
+  it("既定では日本語向けの依頼文と targetLanguage: ja になる", () => {
+    const dir = makeProject();
+    const summary = prepare({ projectDir: dir })!;
+
+    const request = JSON.parse(fs.readFileSync(summary.requestPath, "utf8"));
+    assert.equal(request.targetLanguage, "ja");
+    const prompt = fs.readFileSync(summary.promptPath, "utf8");
+    assert.ok(prompt.includes("yakudoc 翻訳依頼"));
+    assert.ok(prompt.includes("日本語に翻訳し"));
+  });
+
+  it("targetLang が ja 以外なら英語の依頼文になる", () => {
+    const dir = makeProject();
+    const summary = prepare({ projectDir: dir, targetLang: "de" })!;
+
+    const request = JSON.parse(fs.readFileSync(summary.requestPath, "utf8"));
+    assert.equal(request.targetLanguage, "de");
+
+    const prompt = fs.readFileSync(summary.promptPath, "utf8");
+    assert.ok(prompt.includes("yakudoc translation request"));
+    assert.ok(prompt.includes("Translate each value into **German**"));
+    assert.ok(prompt.includes("Returns the <ph0> object."));
+    // 依頼文の反映コマンドは言語によらず同じ
+    assert.ok(prompt.includes("--apply .yakudoc/ai/response.json"));
+  });
+
+  it("ja 以外でも用語集が依頼文に反映される", () => {
+    const dir = makeProject();
+    fs.mkdirSync(path.join(dir, ".yakudoc"), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, ".yakudoc", "glossary.json"),
+      JSON.stringify({ user: "Benutzer" })
+    );
+    const summary = prepare({ projectDir: dir, targetLang: "de" })!;
+    assert.ok(
+      fs.readFileSync(summary.promptPath, "utf8").includes("- user → Benutzer")
+    );
+  });
+
+  it("未対応の targetLang はエラーにする", () => {
+    const dir = makeProject();
+    assert.throws(
+      () => prepare({ projectDir: dir, targetLang: "xx" }),
+      /未対応の言語コード/
+    );
+  });
 });
 
 describe("applyResponse", () => {

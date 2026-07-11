@@ -1,7 +1,7 @@
 {
   "name": "yakudoc-ts-plugin",
   "version": "0.1.0",
-  "description": "tsserver Language Service Plugin that swaps JSDoc documentation shown in the editor (hover / completion / signature help) with Japanese translations",
+  "description": "tsserver Language Service Plugin that swaps JSDoc documentation shown in the editor (hover / completion / signature help) with translations in your language",
   "license": "MIT",
   "keywords": [
     "tsserver",

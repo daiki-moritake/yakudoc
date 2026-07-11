@@ -1,11 +1,12 @@
 import * as path from "node:path";
-import type { EngineRunOptions } from "yakudoc-core";
+import { resolveLanguage, type EngineRunOptions } from "yakudoc-core";
 import { translatePending } from "./engine";
 import { resolveModel } from "./resolveModel";
 import { createLocalTranslator } from "./translator";
 
 export { translatePending, type MtSummary, type TranslateFn } from "./engine";
 export { createLocalTranslator, DEFAULT_MODEL } from "./translator";
+export { normalizeJapaneseOutput, postprocessFor } from "./postprocess";
 export {
   resolveModel,
   MODEL_TIERS,
@@ -37,13 +38,16 @@ export async function run(options: EngineRunOptions): Promise<void> {
   const resolved = resolveModel({
     explicitModel: options.model ?? process.env.YAKUDOC_MT_MODEL,
     size: options.modelSize ?? process.env.YAKUDOC_MT_MODEL_SIZE,
+    targetLang: options.targetLang,
   });
+  const lang = resolveLanguage(resolved.targetLang);
 
   console.log(`翻訳モデル: ${resolved.model}`);
   console.log(`選択理由: ${resolved.reason}`);
+  console.log(`翻訳先言語: ${lang.name} (${lang.code})`);
   console.log("(初回はモデルのダウンロードに時間がかかることがあります)");
 
-  const translate = await createLocalTranslator(resolved);
+  const translate = await createLocalTranslator(resolved, resolved.targetLang);
   const summary = await translatePending(translationsPath, translate, (message) =>
     console.log(message)
   );

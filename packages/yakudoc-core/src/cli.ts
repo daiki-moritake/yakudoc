@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as path from "node:path";
 import { parseArgs } from "node:util";
+import { configPathBeside, resolveTargetLang } from "./config";
 import { extractProject, type ExtractSummary } from "./extract";
 import { initProject } from "./init";
 import { statusExitCode, statusProject, type PendingEntry } from "./status";
@@ -21,6 +22,9 @@ const USAGE = `使い方: yakudoc <command> [options]
       --prune            [extract] ソースから消えた原文のエントリを削除する
       --json             [status] 進捗を機械可読な JSON で出力する
       --fail-on-pending  [status] 翻訳待ちが残っていれば終了コード 1(CI 用)
+      --lang <code>      [init/translate] 翻訳先の言語コード(既定: ja)。
+                         init で指定すると .yakudoc/config.json に保存され、
+                         以後の translate はそれを使う
       --engine <name>    [translate] prep(AI 用下準備)/ local(内蔵モデル)
       --apply <path>     [translate] 翻訳結果 JSON を translations.json に書き戻す
       --model-size <s>   [translate --engine local] small | large | auto
@@ -44,6 +48,7 @@ async function runTranslate(values: {
   apply?: string;
   model?: string;
   "model-size"?: string;
+  lang?: string;
 }): Promise<void> {
   if (!values.engine) {
     throw new Error(
@@ -56,6 +61,16 @@ async function runTranslate(values: {
       `不明なエンジンです: ${values.engine}(prep または local が使えます)`
     );
   }
+
+  // エンジンの読み込み前に言語コードを検証する(--lang > config.json > ja)
+  const translationsPath = path.resolve(
+    process.cwd(),
+    values.out ?? path.join(".yakudoc", "translations.json")
+  );
+  const targetLang = resolveTargetLang(
+    values.lang,
+    configPathBeside(translationsPath)
+  );
 
   let engine: TranslateEngineModule;
   try {
@@ -73,6 +88,7 @@ async function runTranslate(values: {
     applyPath: values.apply,
     model: values.model,
     modelSize: values["model-size"],
+    targetLang,
   });
 }
 
@@ -92,11 +108,16 @@ function printExtractSummary(summary: ExtractSummary): void {
   }
 }
 
-function runInit(values: { project?: string; out?: string }): void {
+function runInit(values: {
+  project?: string;
+  out?: string;
+  lang?: string;
+}): void {
   const summary = initProject({
     projectDir: process.cwd(),
     tsconfigPath: values.project,
     outPath: values.out,
+    targetLang: values.lang,
   });
 
   const tsconfigLabel = path.relative(process.cwd(), summary.tsconfigPath);
@@ -106,6 +127,11 @@ function runInit(values: { project?: string; out?: string }): void {
       : `${tsconfigLabel} には yakudoc-ts-plugin が登録済みです`
   );
   printExtractSummary(summary.extract);
+  if (summary.configWritten) {
+    console.log(
+      `翻訳先言語: ${summary.targetLang}(.yakudoc/config.json に保存しました)`
+    );
+  }
 
   console.log(`
 次にやること:
@@ -191,6 +217,7 @@ async function main(): Promise<void> {
       apply: { type: "string" },
       model: { type: "string" },
       "model-size": { type: "string" },
+      lang: { type: "string" },
       help: { type: "boolean", short: "h", default: false },
     },
   });
