@@ -7,6 +7,13 @@ export {
   type ExtractSummary,
 } from "./extract";
 export {
+  addPluginToTsconfig,
+  initProject,
+  PLUGIN_NAME,
+  type InitOptions,
+  type InitSummary,
+} from "./init";
+export {
   mergeTranslations,
   readTranslations,
   writeTranslations,

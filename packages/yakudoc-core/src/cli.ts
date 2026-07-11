@@ -1,12 +1,15 @@
 #!/usr/bin/env node
+import * as path from "node:path";
 import { parseArgs } from "node:util";
-import { extractProject } from "./extract";
+import { extractProject, type ExtractSummary } from "./extract";
+import { initProject } from "./init";
 import { statusExitCode, statusProject, type PendingEntry } from "./status";
 import type { EngineRunOptions } from "./types";
 
 const USAGE = `使い方: yakudoc <command> [options]
 
 コマンド:
+  init         導入を一括で行う(tsconfig.json へのプラグイン登録 + 初回 extract)
   extract      プロジェクトの JSDoc を走査し、.yakudoc/translations.json に
                翻訳待ちの原文を書き出す(既存の訳文は保持される)
   status       translations.json を書き換えずに翻訳の進捗を表示する
@@ -71,6 +74,47 @@ async function runTranslate(values: {
     model: values.model,
     modelSize: values["model-size"],
   });
+}
+
+/** extract の結果を extract / init 共通の書式で表示する */
+function printExtractSummary(summary: ExtractSummary): void {
+  console.log(`書き出し先: ${summary.outPath}`);
+  console.log(
+    `${summary.fileCount} ファイルから ${summary.extracted} 件の原文を抽出しました` +
+      `(翻訳済み ${summary.translated} / 翻訳待ち ${summary.untranslated})`
+  );
+  if (summary.stale > 0) {
+    console.log(
+      summary.pruned
+        ? `ソースに存在しない ${summary.stale} 件のエントリを削除しました`
+        : `ソースに存在しない ${summary.stale} 件のエントリを残しています(--prune で削除できます)`
+    );
+  }
+}
+
+function runInit(values: { project?: string; out?: string }): void {
+  const summary = initProject({
+    projectDir: process.cwd(),
+    tsconfigPath: values.project,
+    outPath: values.out,
+  });
+
+  const tsconfigLabel = path.relative(process.cwd(), summary.tsconfigPath);
+  console.log(
+    summary.pluginRegistered
+      ? `${tsconfigLabel} に yakudoc-ts-plugin を登録しました`
+      : `${tsconfigLabel} には yakudoc-ts-plugin が登録済みです`
+  );
+  printExtractSummary(summary.extract);
+
+  console.log(`
+次にやること:
+  1. 翻訳を実行する
+       npx yakudoc translate --engine local   (内蔵モデル。要 yakudoc-mt)
+       npx yakudoc translate --engine prep    (任意の AI に依頼。要 yakudoc-ai-prep)
+     または translations.json の "translated" を直接編集する
+  2. VSCode でコマンドパレットから「TypeScript: Restart TS Server」を実行する
+     (プラグイン登録を反映するため。以降の翻訳更新は自動で反映されます)`);
 }
 
 /** 翻訳待ち一覧を「symbol  原文(長ければ省略)」の行に整形する */
@@ -157,6 +201,11 @@ async function main(): Promise<void> {
     process.exit(values.help ? 0 : 1);
   }
 
+  if (command === "init") {
+    runInit(values);
+    return;
+  }
+
   if (command === "extract") {
     const summary = extractProject({
       projectDir: process.cwd(),
@@ -164,19 +213,7 @@ async function main(): Promise<void> {
       outPath: values.out,
       prune: values.prune,
     });
-
-    console.log(`書き出し先: ${summary.outPath}`);
-    console.log(
-      `${summary.fileCount} ファイルから ${summary.extracted} 件の原文を抽出しました` +
-        `(翻訳済み ${summary.translated} / 翻訳待ち ${summary.untranslated})`
-    );
-    if (summary.stale > 0) {
-      console.log(
-        summary.pruned
-          ? `ソースに存在しない ${summary.stale} 件のエントリを削除しました`
-          : `ソースに存在しない ${summary.stale} 件のエントリを残しています(--prune で削除できます)`
-      );
-    }
+    printExtractSummary(summary);
     return;
   }
 
