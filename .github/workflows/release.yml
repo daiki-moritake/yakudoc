@@ -18,6 +18,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # main 含有チェック(merge-base)に履歴が必要
+          fetch-depth: 0
+
+      # 誤って main 以外のコミットに打たれたタグからの公開を防ぐ
+      - name: Verify tag commit is on main
+        run: |
+          git fetch origin main --quiet
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::タグのコミットが main に含まれていません。main 上のコミットにタグを打ち直してください。"
+            exit 1
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -35,12 +47,18 @@ jobs:
       - name: Test
         run: npm test
 
-      # yakudoc-core を先頭に、依存される側から順に publish する
+      # yakudoc-core を先頭に、依存される側から順に publish する。
+      # 公開済みのバージョンはスキップするため、途中で失敗しても
+      # 同じタグでワークフローを再実行すれば続きから公開できる。
       - name: Publish to npm
         run: |
-          npm publish --provenance --access public -w yakudoc-core
-          npm publish --provenance --access public -w yakudoc-ts-plugin
-          npm publish --provenance --access public -w yakudoc-ai-prep
-          npm publish --provenance --access public -w yakudoc-mt
+          for pkg in yakudoc-core yakudoc-ts-plugin yakudoc-ai-prep yakudoc-mt; do
+            version="$(node -p "require('./packages/${pkg}/package.json').version")"
+            if npm view "${pkg}@${version}" version >/dev/null 2>&1; then
+              echo "${pkg}@${version} は公開済みのためスキップします"
+            else
+              npm publish --provenance --access public -w "${pkg}"
+            fi
+          done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

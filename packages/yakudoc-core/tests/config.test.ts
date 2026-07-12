@@ -4,7 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { after, describe, it } from "node:test";
 import {
-  configPathBeside,
+  configPathFor,
   readConfig,
   resolveTargetLang,
   writeConfig,
@@ -24,11 +24,11 @@ function tempConfigPath(): string {
   return path.join(dir, ".yakudoc", "config.json");
 }
 
-describe("configPathBeside", () => {
-  it("translations.json と同じディレクトリの config.json を指す", () => {
+describe("configPathFor", () => {
+  it("プロジェクト直下の .yakudoc/config.json を指す(--out には追従しない)", () => {
     assert.equal(
-      configPathBeside("/proj/.yakudoc/translations.json"),
-      path.join("/proj/.yakudoc", "config.json")
+      configPathFor("/proj"),
+      path.join("/proj", ".yakudoc", "config.json")
     );
   });
 });
@@ -52,6 +52,28 @@ describe("read / write config", () => {
       JSON.stringify({ targetLang: "ko", unknown: true })
     );
     assert.deepEqual(readConfig(configPath), { targetLang: "ko" });
+  });
+
+  it("壊れた JSON は案内付きのエラーにする", () => {
+    const configPath = tempConfigPath();
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, '{ "targetLang": "ja", }');
+    assert.throws(() => readConfig(configPath), /JSON として解釈できませんでした/);
+  });
+
+  it("オブジェクトでない内容(null・配列)はエラーにする", () => {
+    const configPath = tempConfigPath();
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, "null");
+    assert.throws(() => readConfig(configPath), /オブジェクトではありません/);
+    fs.writeFileSync(configPath, "[]");
+    assert.throws(() => readConfig(configPath), /オブジェクトではありません/);
+  });
+
+  it("存在するのに読めないファイル(ディレクトリ等)は黙って無視せずエラーにする", () => {
+    const configPath = tempConfigPath();
+    fs.mkdirSync(configPath, { recursive: true });
+    assert.throws(() => readConfig(configPath), /読み込めませんでした/);
   });
 });
 

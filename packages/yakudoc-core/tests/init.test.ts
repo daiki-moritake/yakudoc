@@ -15,10 +15,16 @@ after(() => {
 });
 
 /** tsconfig.json と JSDoc 付きソースを持つ最小プロジェクトを作る */
-function makeProject(tsconfigText: string): string {
+function makeProject(
+  tsconfigText: string,
+  extraFiles: Record<string, string> = {}
+): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-init-"));
   tempDirs.push(dir);
   fs.writeFileSync(path.join(dir, "tsconfig.json"), tsconfigText);
+  for (const [name, content] of Object.entries(extraFiles)) {
+    fs.writeFileSync(path.join(dir, name), content);
+  }
   fs.mkdirSync(path.join(dir, "src"));
   fs.writeFileSync(
     path.join(dir, "src", "greet.ts"),
@@ -75,6 +81,42 @@ describe("addPluginToTsconfig", () => {
     assert.equal(changed, true);
     assert.ok(text.includes("// strict は必須"));
     assert.ok(text.includes(`"name": "yakudoc-ts-plugin"`));
+  });
+
+  it("plugins が配列以外なら安全のためエラーにする", () => {
+    assert.throws(
+      () =>
+        addPluginToTsconfig(
+          `{\n  "compilerOptions": {\n    "plugins": {}\n  }\n}\n`
+        ),
+      /plugins が配列ではありません/
+    );
+  });
+
+  it("extends 継承分(effectivePlugins)を種にしてローカル配列を新設する", () => {
+    const { text, changed } = addPluginToTsconfig(
+      `{\n  "extends": "./tsconfig.base.json",\n  "compilerOptions": {\n    "target": "es2022"\n  }\n}\n`,
+      "yakudoc-ts-plugin",
+      [{ name: "other-plugin" }]
+    );
+    assert.equal(changed, true);
+    const parsed = JSON.parse(text) as {
+      compilerOptions: { plugins: Array<{ name: string }> };
+    };
+    // 継承分を含めないと、ローカル新設によって other-plugin が失効してしまう
+    assert.deepEqual(
+      parsed.compilerOptions.plugins.map((plugin) => plugin.name),
+      ["other-plugin", "yakudoc-ts-plugin"]
+    );
+  });
+
+  it("extends 先で登録済み(effectivePlugins に含まれる)なら何もしない", () => {
+    const original = `{\n  "extends": "./tsconfig.base.json"\n}\n`;
+    const { text, changed } = addPluginToTsconfig(original, "yakudoc-ts-plugin", [
+      { name: "yakudoc-ts-plugin" },
+    ]);
+    assert.equal(changed, false);
+    assert.equal(text, original);
   });
 });
 
@@ -173,6 +215,60 @@ describe("initProject", () => {
       () => initProject({ projectDir: dir, targetLang: "xx" }),
       /未対応の言語コード/
     );
+    assert.equal(
+      fs.readFileSync(path.join(dir, "tsconfig.json"), "utf8"),
+      tsconfigText
+    );
+  });
+
+  it("--out を指定しても config.json は .yakudoc/config.json に保存される", () => {
+    const dir = makeProject(`{\n  "compilerOptions": {\n    "strict": true\n  }\n}\n`);
+
+    const summary = initProject({
+      projectDir: dir,
+      targetLang: "de",
+      outPath: path.join("build", "translations.json"),
+    });
+
+    assert.equal(summary.configPath, path.join(dir, ".yakudoc", "config.json"));
+    assert.ok(fs.existsSync(summary.configPath));
+    // translations.json 側は --out に従う
+    assert.equal(
+      summary.extract.outPath,
+      path.join(dir, "build", "translations.json")
+    );
+  });
+
+  it("extends 先から plugins を継承している場合、継承分を含めて登録する", () => {
+    const dir = makeProject(
+      `{\n  "extends": "./tsconfig.base.json",\n  "compilerOptions": {\n    "target": "es2022"\n  }\n}\n`,
+      {
+        "tsconfig.base.json": `{\n  "compilerOptions": {\n    "strict": true,\n    "plugins": [{ "name": "other-plugin" }]\n  }\n}\n`,
+      }
+    );
+
+    const summary = initProject({ projectDir: dir });
+
+    assert.equal(summary.pluginRegistered, true);
+    const tsconfig = JSON.parse(
+      fs.readFileSync(path.join(dir, "tsconfig.json"), "utf8")
+    ) as { compilerOptions: { plugins: Array<{ name: string }> } };
+    // TS のマージはキー単位の置換のため、other-plugin を含めないと失効する
+    assert.deepEqual(
+      tsconfig.compilerOptions.plugins.map((plugin) => plugin.name),
+      ["other-plugin", "yakudoc-ts-plugin"]
+    );
+  });
+
+  it("extends 先で登録済みならローカル tsconfig を書き換えない", () => {
+    const tsconfigText = `{\n  "extends": "./tsconfig.base.json"\n}\n`;
+    const dir = makeProject(tsconfigText, {
+      "tsconfig.base.json": `{\n  "compilerOptions": {\n    "plugins": [{ "name": "yakudoc-ts-plugin" }]\n  }\n}\n`,
+    });
+
+    const summary = initProject({ projectDir: dir });
+
+    assert.equal(summary.pluginRegistered, false);
     assert.equal(
       fs.readFileSync(path.join(dir, "tsconfig.json"), "utf8"),
       tsconfigText

@@ -5,6 +5,12 @@ export interface TranslationEntry {
   translated: string;
   /** 補助情報。リネーム検出用の "src/api/user.ts#fetchUser" 形式 */
   symbol?: string;
+  /**
+   * 訳文の言語コード。翻訳エンジンが書き込み時に付与する。
+   * 無いエントリ(手動編集・旧バージョンのファイル)は現在の翻訳先言語と
+   * みなす(アップグレードで既存の訳が失効しないようにするため)。
+   */
+  lang?: string;
 }
 
 /** .yakudoc/translations.json 全体。キーは正規化した原文のハッシュ */

@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { after, describe, it } from "node:test";
+import { writeConfig } from "../src/config";
 import { computeStatus, statusExitCode, statusProject } from "../src/status";
 import { writeTranslations } from "../src/translationsFile";
 import type { TranslationsFile } from "../src/types";
@@ -62,6 +63,24 @@ describe("computeStatus", () => {
       pending: [],
     });
   });
+
+  it("訳文の言語が翻訳先と異なるエントリは翻訳待ちに数える", () => {
+    const translations: TranslationsFile = {
+      a: { original: "A.", translated: "訳A", lang: "ja", symbol: "src/a.ts#a" },
+      b: {
+        original: "B.",
+        translated: "Übersetzung B",
+        lang: "de",
+        symbol: "src/b.ts#b",
+      },
+      // lang 無しの既存エントリは現在の翻訳先の訳とみなす
+      c: { original: "C.", translated: "訳C", symbol: "src/c.ts#c" },
+    };
+    const status = computeStatus(translations, "de");
+    assert.equal(status.translated, 2);
+    assert.equal(status.untranslated, 1);
+    assert.equal(status.pending[0].symbol, "src/a.ts#a");
+  });
 });
 
 describe("statusExitCode", () => {
@@ -99,5 +118,19 @@ describe("statusProject", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-status-"));
     tempDirs.push(dir);
     assert.equal(statusProject({ projectDir: dir }), undefined);
+  });
+
+  it("config.json の翻訳先言語で集計する(言語切替後の旧訳は翻訳待ち)", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-status-"));
+    tempDirs.push(dir);
+    writeTranslations(path.join(dir, ".yakudoc", "translations.json"), {
+      a: { original: "A.", translated: "訳A", lang: "ja", symbol: "src/a.ts#a" },
+    });
+    writeConfig(path.join(dir, ".yakudoc", "config.json"), { targetLang: "de" });
+
+    const summary = statusProject({ projectDir: dir })!;
+    assert.equal(summary.targetLang, "de");
+    assert.equal(summary.untranslated, 1);
+    assert.equal(summary.translated, 0);
   });
 });

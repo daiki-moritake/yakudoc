@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import * as path from "node:path";
 import { parseArgs } from "node:util";
-import { configPathBeside, resolveTargetLang } from "./config";
+import { configPathFor, resolveTargetLang } from "./config";
 import { extractProject, type ExtractSummary } from "./extract";
 import { initProject } from "./init";
+import { DEFAULT_TARGET_LANG } from "./languages";
 import { statusExitCode, statusProject, type PendingEntry } from "./status";
 import type { EngineRunOptions } from "./types";
 
@@ -63,13 +64,9 @@ async function runTranslate(values: {
   }
 
   // エンジンの読み込み前に言語コードを検証する(--lang > config.json > ja)
-  const translationsPath = path.resolve(
-    process.cwd(),
-    values.out ?? path.join(".yakudoc", "translations.json")
-  );
   const targetLang = resolveTargetLang(
     values.lang,
-    configPathBeside(translationsPath)
+    configPathFor(process.cwd())
   );
 
   let engine: TranslateEngineModule;
@@ -128,8 +125,9 @@ function runInit(values: {
   );
   printExtractSummary(summary.extract);
   if (summary.configWritten) {
+    const configLabel = path.relative(process.cwd(), summary.configPath);
     console.log(
-      `翻訳先言語: ${summary.targetLang}(.yakudoc/config.json に保存しました)`
+      `翻訳先言語: ${summary.targetLang}(${configLabel} に保存しました)`
     );
   }
 
@@ -180,14 +178,21 @@ function runStatus(values: {
   });
 
   if (values.json) {
-    const { total, translated, untranslated, pending } = summary;
+    const { total, translated, untranslated, pending, targetLang } = summary;
     console.log(
-      JSON.stringify({ total, translated, untranslated, pending }, null, 2)
+      JSON.stringify(
+        { total, translated, untranslated, pending, targetLang },
+        null,
+        2
+      )
     );
     return;
   }
 
   console.log(`翻訳ファイル: ${summary.outPath}`);
+  if (summary.targetLang !== DEFAULT_TARGET_LANG) {
+    console.log(`翻訳先言語: ${summary.targetLang}`);
+  }
   if (summary.total === 0) {
     console.log("翻訳対象がありません。");
     return;

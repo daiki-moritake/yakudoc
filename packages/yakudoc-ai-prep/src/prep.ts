@@ -2,9 +2,11 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import {
   DEFAULT_TARGET_LANG,
+  needsTranslation,
   protectText,
   readTranslations,
   resolveLanguage,
+  resolveTranslationsPath as resolveDefaultTranslationsPath,
   type EngineRunOptions,
   type LanguageSpec,
 } from "yakudoc-core";
@@ -33,9 +35,23 @@ export interface PrepareSummary {
 }
 
 export function resolveTranslationsPath(options: EngineRunOptions): string {
-  return path.resolve(
+  return resolveDefaultTranslationsPath(
     options.projectDir,
-    options.translationsPath ?? path.join(".yakudoc", "translations.json")
+    options.translationsPath
+  );
+}
+
+/**
+ * 言語ごとの用語集パス。既定言語(ja)は従来の glossary.json を使い続け、
+ * それ以外は glossary.<code>.json に分ける(日本語向けに育てた用語集が
+ * 他言語の依頼文へ混入しないようにするため)。
+ */
+function glossaryPathFor(yakudocDir: string, langCode: string): string {
+  return path.join(
+    yakudocDir,
+    langCode === DEFAULT_TARGET_LANG
+      ? "glossary.json"
+      : `glossary.${langCode}.json`
   );
 }
 
@@ -47,6 +63,8 @@ export function resolveTranslationsPath(options: EngineRunOptions): string {
  * - .yakudoc/glossary.json    用語集(無ければ空で作成。ユーザーが育てる)
  */
 export function prepare(options: EngineRunOptions): PrepareSummary | undefined {
+  // 翻訳待ちが 0 件でも言語コードは必ず検証する(不正な指定を黙って通さない)
+  const lang = resolveLanguage(options.targetLang ?? DEFAULT_TARGET_LANG);
   const translationsPath = resolveTranslationsPath(options);
   const translations = readTranslations(translationsPath);
   if (!translations) {
@@ -56,7 +74,7 @@ export function prepare(options: EngineRunOptions): PrepareSummary | undefined {
   }
 
   const yakudocDir = path.dirname(translationsPath);
-  const glossaryPath = path.join(yakudocDir, "glossary.json");
+  const glossaryPath = glossaryPathFor(yakudocDir, lang.code);
   if (!fs.existsSync(glossaryPath)) {
     fs.writeFileSync(glossaryPath, "{}\n");
   }
@@ -65,14 +83,13 @@ export function prepare(options: EngineRunOptions): PrepareSummary | undefined {
     string
   >;
 
-  const pending = Object.entries(translations).filter(
-    ([, entry]) => !entry.translated
+  const pending = Object.entries(translations).filter(([, entry]) =>
+    needsTranslation(entry, lang.code)
   );
   if (pending.length === 0) {
     return undefined;
   }
 
-  const lang = resolveLanguage(options.targetLang ?? DEFAULT_TARGET_LANG);
   const request: RequestFile = { targetLanguage: lang.code, entries: {} };
   for (const [hash, entry] of pending) {
     const protectedText = protectText(entry.original);
@@ -157,9 +174,10 @@ function buildEnglishPrompt(
   glossaryList: string,
   lang: LanguageSpec
 ): string {
+  const glossaryFile = `.yakudoc/glossary.${lang.code}.json`;
   const glossarySection =
     glossaryList ||
-    '(empty — add `"source term": "translation"` pairs to `.yakudoc/glossary.json` and they will be listed here)';
+    `(empty — add \`"source term": "translation"\` pairs to \`${glossaryFile}\` and they will be listed here)`;
 
   return `# yakudoc translation request
 
