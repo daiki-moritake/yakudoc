@@ -3,6 +3,7 @@ import * as path from "node:path";
 import {
   hashText,
   normalizeText,
+  TRANSLATIONS_RELATIVE_PATH,
   type TranslationEntry,
   type TranslationsFile,
 } from "yakudoc-core";
@@ -12,7 +13,6 @@ export type { TranslationEntry, TranslationsFile };
 export type Logger = (message: string) => void;
 
 const DEFAULT_RELOAD_INTERVAL_MS = 500;
-const TRANSLATIONS_RELATIVE_PATH = path.join(".yakudoc", "translations.json");
 
 /**
  * `.yakudoc/translations.json` を読み込み、原文テキストから訳文を引くストア。

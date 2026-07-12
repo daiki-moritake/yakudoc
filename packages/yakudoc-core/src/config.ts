@@ -8,25 +8,54 @@ export interface YakudocConfig {
   targetLang?: string;
 }
 
-/** translations.json と同じディレクトリにある config.json のパス */
-export function configPathBeside(translationsPath: string): string {
-  return path.join(path.dirname(translationsPath), "config.json");
+/**
+ * プロジェクトの config.json のパス。
+ * translations.json の --out には追従しない固定の場所(projectDir/.yakudoc/config.json)。
+ * --out に追従させると、後で --out 無しで実行したときに設定が見つからず
+ * 黙って既定言語に戻ってしまうため。
+ */
+export function configPathFor(projectDir: string): string {
+  return path.join(projectDir, ".yakudoc", "config.json");
 }
 
-/** config.json を読み込む。存在しなければ空の設定を返す */
+/**
+ * config.json を読み込む。存在しなければ空の設定を返す。
+ * 存在するのに読めない・解釈できない場合は黙って無視せず、案内付きのエラーにする
+ * (保存済みの --lang が黙って無効になるのを防ぐため)。
+ */
 export function readConfig(configPath: string): YakudocConfig {
   let raw: string;
   try {
     raw = fs.readFileSync(configPath, "utf8");
-  } catch {
-    return {};
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return {};
+    }
+    throw new Error(
+      `${configPath} を読み込めませんでした: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
   }
-  const parsed = JSON.parse(raw) as YakudocConfig;
-  return {
-    ...(typeof parsed.targetLang === "string"
-      ? { targetLang: parsed.targetLang }
-      : {}),
-  };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      `${configPath} を JSON として解釈できませんでした。` +
+        `\n  { "targetLang": "ja" } の形式で保存し直してください。`
+    );
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(
+      `${configPath} の内容がオブジェクトではありません。` +
+        `\n  { "targetLang": "ja" } の形式で保存し直してください。`
+    );
+  }
+
+  const targetLang = (parsed as YakudocConfig).targetLang;
+  return typeof targetLang === "string" ? { targetLang } : {};
 }
 
 /** config.json を書き出す(ディレクトリが無ければ作る) */

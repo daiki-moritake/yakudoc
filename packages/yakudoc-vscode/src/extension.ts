@@ -41,9 +41,20 @@ async function registerInto(uris: vscode.Uri[]): Promise<number> {
     if (raw === undefined) {
       continue;
     }
-    const { text, changed } = addYakudocPlugin(raw);
-    if (changed) {
-      await vscode.workspace.fs.writeFile(uri, Buffer.from(text, "utf8"));
+    let result: { text: string; changed: boolean };
+    try {
+      result = addYakudocPlugin(raw);
+    } catch (error) {
+      // 編集できないファイル(plugins が配列以外など)は飛ばして知らせる
+      void vscode.window.showWarningMessage(
+        `yakudoc: ${vscode.workspace.asRelativePath(uri)} を編集できません: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      continue;
+    }
+    if (result.changed) {
+      await vscode.workspace.fs.writeFile(uri, Buffer.from(result.text, "utf8"));
       changedCount += 1;
     }
   }
@@ -126,8 +137,15 @@ async function offerRegistrationIfNeeded(
   for (const folder of vscode.workspace.workspaceFolders ?? []) {
     const uri = vscode.Uri.joinPath(folder.uri, "tsconfig.json");
     const raw = await readTextFile(uri);
-    if (raw !== undefined && addYakudocPlugin(raw).changed) {
-      missing.push(uri);
+    if (raw === undefined) {
+      continue;
+    }
+    try {
+      if (addYakudocPlugin(raw).changed) {
+        missing.push(uri);
+      }
+    } catch {
+      // 編集できない tsconfig は起動時の自動提案では扱わない
     }
   }
   if (missing.length === 0) {
@@ -175,9 +193,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await config.update("enabled", !isEnabled(), target);
     }),
     vscode.commands.registerCommand("yakudoc.registerPlugin", registerPluginCommand),
-    vscode.commands.registerCommand("yakudoc.init", () =>
-      runInTerminal("npx yakudoc init")
-    ),
+    vscode.commands.registerCommand("yakudoc.init", async () => {
+      runInTerminal("npx yakudoc init");
+      // ターミナル実行の完了は検知できないため、再起動の導線だけ先に出しておく
+      const answer = await vscode.window.showInformationMessage(
+        "yakudoc: init をターミナルで実行しています。プラグインを新規登録した場合、" +
+          "完了後に TS Server の再起動が必要です。",
+        "再起動"
+      );
+      if (answer === "再起動") {
+        await vscode.commands.executeCommand("typescript.restartTsServer");
+      }
+    }),
     vscode.commands.registerCommand("yakudoc.extract", () =>
       runInTerminal("npx yakudoc extract")
     ),

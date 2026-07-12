@@ -2,41 +2,88 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as ts from "typescript";
 import { applyEdits, modify, parse } from "jsonc-parser";
-import { configPathBeside, readConfig, resolveTargetLang, writeConfig } from "./config";
+import { configPathFor, readConfig, resolveTargetLang, writeConfig } from "./config";
 import { extractProject, type ExtractSummary } from "./extract";
-import { resolveLanguage } from "./languages";
 
 export const PLUGIN_NAME = "yakudoc-ts-plugin";
 
+interface PluginEntry {
+  name?: string;
+}
+
 interface TsconfigLike {
   compilerOptions?: {
-    plugins?: Array<{ name?: string }>;
+    plugins?: unknown;
   };
 }
 
 /**
  * tsconfig.json(JSONC)のテキストに compilerOptions.plugins エントリを追加する。
  * コメントや既存のフォーマットは保持する。登録済みなら何もしない。
+ *
+ * effectivePlugins には extends 解決後の実効 plugins を渡す。tsconfig が
+ * extends 先から plugins を継承している場合、ローカルに plugins を新設すると
+ * TypeScript のマージ規則(キー単位の置換)で継承分が丸ごと消えるため、
+ * 実効 plugins を種にしてローカル配列を組み立てる。
+ *
+ * 注意: この実装は packages/yakudoc-vscode/src/tsconfigRegistration.ts の
+ * addYakudocPlugin と対で保守する(拡張側は typescript 非依存のため共有していない)。
  */
 export function addPluginToTsconfig(
   tsconfigText: string,
-  pluginName: string = PLUGIN_NAME
+  pluginName: string = PLUGIN_NAME,
+  effectivePlugins?: PluginEntry[]
 ): { text: string; changed: boolean } {
   const root = (parse(tsconfigText) ?? {}) as TsconfigLike;
-  const plugins = root.compilerOptions?.plugins ?? [];
-  if (plugins.some((plugin) => plugin?.name === pluginName)) {
+  const localPlugins = root.compilerOptions?.plugins;
+  if (localPlugins !== undefined && !Array.isArray(localPlugins)) {
+    throw new Error(
+      "tsconfig.json の compilerOptions.plugins が配列ではありません。" +
+        "配列に修正してから再実行してください。"
+    );
+  }
+
+  const known = (effectivePlugins ?? localPlugins ?? []) as PluginEntry[];
+  if (known.some((plugin) => plugin?.name === pluginName)) {
     return { text: tsconfigText, changed: false };
   }
-  const edits = modify(
-    tsconfigText,
-    ["compilerOptions", "plugins", plugins.length],
-    { name: pluginName },
-    {
-      isArrayInsertion: true,
-      formattingOptions: { insertSpaces: true, tabSize: 2 },
-    }
-  );
+
+  const formattingOptions = { insertSpaces: true, tabSize: 2 };
+  const edits = Array.isArray(localPlugins)
+    ? // ローカルに plugins 配列があるなら末尾に追記する
+      modify(
+        tsconfigText,
+        ["compilerOptions", "plugins", localPlugins.length],
+        { name: pluginName },
+        { isArrayInsertion: true, formattingOptions }
+      )
+    : // ローカルに無いなら、extends からの継承分を含めた配列を新設する
+      // (継承分を含めないと、この新設によって継承側の plugins が失効する)
+      modify(
+        tsconfigText,
+        ["compilerOptions", "plugins"],
+        [...(effectivePlugins ?? []), { name: pluginName }],
+        { formattingOptions }
+      );
   return { text: applyEdits(tsconfigText, edits), changed: true };
+}
+
+/**
+ * extends を解決した後の実効 compilerOptions.plugins を返す。
+ * 解決できない場合(tsconfig が壊れている等)は undefined。
+ */
+function effectivePluginsOf(configPath: string): PluginEntry[] | undefined {
+  const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
+  if (configFile.error) {
+    return undefined;
+  }
+  const parsed = ts.parseJsonConfigFileContent(
+    configFile.config,
+    ts.sys,
+    path.dirname(configPath)
+  );
+  const plugins = (parsed.options as { plugins?: unknown }).plugins;
+  return Array.isArray(plugins) ? (plugins as PluginEntry[]) : undefined;
 }
 
 export interface InitOptions {
@@ -59,6 +106,8 @@ export interface InitSummary {
   extract: ExtractSummary;
   /** 有効な翻訳先言語コード(--lang > config.json > 既定 ja) */
   targetLang: string;
+  /** config.json の絶対パス(表示用) */
+  configPath: string;
   /** 今回 config.json に翻訳先言語を保存したか */
   configWritten: boolean;
 }
@@ -74,10 +123,10 @@ export interface InitSummary {
  */
 export function initProject(options: InitOptions): InitSummary {
   const projectDir = path.resolve(options.projectDir);
-  // tsconfig を書き換える前に言語コードを検証する
-  const explicitLang = options.targetLang
-    ? resolveLanguage(options.targetLang).code
-    : undefined;
+  // tsconfig を書き換える前に言語コード(--lang と config.json 双方)を検証する
+  const yakudocConfigPath = configPathFor(projectDir);
+  const targetLang = resolveTargetLang(options.targetLang, yakudocConfigPath);
+
   const configPath = options.tsconfigPath
     ? path.resolve(projectDir, options.tsconfigPath)
     : ts.findConfigFile(projectDir, ts.sys.fileExists, "tsconfig.json");
@@ -89,7 +138,11 @@ export function initProject(options: InitOptions): InitSummary {
   }
 
   const tsconfigText = fs.readFileSync(configPath, "utf8");
-  const { text, changed } = addPluginToTsconfig(tsconfigText);
+  const { text, changed } = addPluginToTsconfig(
+    tsconfigText,
+    PLUGIN_NAME,
+    effectivePluginsOf(configPath)
+  );
   if (changed) {
     fs.writeFileSync(configPath, text);
   }
@@ -100,11 +153,10 @@ export function initProject(options: InitOptions): InitSummary {
     outPath: options.outPath,
   });
 
-  const yakudocConfigPath = configPathBeside(extract.outPath);
-  if (explicitLang) {
+  if (options.targetLang) {
     writeConfig(yakudocConfigPath, {
       ...readConfig(yakudocConfigPath),
-      targetLang: explicitLang,
+      targetLang,
     });
   }
 
@@ -112,8 +164,8 @@ export function initProject(options: InitOptions): InitSummary {
     tsconfigPath: configPath,
     pluginRegistered: changed,
     extract,
-    targetLang:
-      explicitLang ?? resolveTargetLang(undefined, yakudocConfigPath),
-    configWritten: explicitLang !== undefined,
+    targetLang,
+    configPath: yakudocConfigPath,
+    configWritten: options.targetLang !== undefined,
   };
 }

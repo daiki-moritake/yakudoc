@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  DEFAULT_TARGET_LANG,
   placeholderToken,
   readTranslations,
   restoreText,
@@ -42,6 +43,12 @@ export function applyResponse(
   const responsePath = path.resolve(options.projectDir, options.applyPath);
   const response = parseResponse(responsePath);
 
+  // 訳文の言語タグ: 依頼文を生成したときの言語(request.json)を最優先する
+  const appliedLang =
+    typeof request?.targetLanguage === "string"
+      ? request.targetLanguage
+      : options.targetLang ?? DEFAULT_TARGET_LANG;
+
   const summary: ApplySummary = { applied: 0, skipped: [] };
   for (const [hash, translatedRaw] of Object.entries(response)) {
     if (typeof translatedRaw !== "string" || translatedRaw.trim() === "") {
@@ -62,6 +69,7 @@ export function applyResponse(
       continue;
     }
     entry.translated = text;
+    entry.lang = appliedLang;
     summary.applied += 1;
   }
 

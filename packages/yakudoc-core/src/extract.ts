@@ -1,7 +1,12 @@
 import * as path from "node:path";
 import * as ts from "typescript";
 import { hashText } from "./normalize";
-import { mergeTranslations, readTranslations, writeTranslations } from "./translationsFile";
+import {
+  mergeTranslations,
+  readTranslations,
+  resolveTranslationsPath,
+  writeTranslations,
+} from "./translationsFile";
 
 export interface ExtractedComment {
   hash: string;
@@ -177,10 +182,7 @@ export function extractProject(options: ExtractOptions): ExtractSummary {
     }
   }
 
-  const outPath = path.resolve(
-    projectDir,
-    options.outPath ?? path.join(".yakudoc", "translations.json")
-  );
+  const outPath = resolveTranslationsPath(projectDir, options.outPath);
   const existing = readTranslations(outPath) ?? {};
   const prune = options.prune ?? false;
   const { merged, stats } = mergeTranslations(existing, extracted, { prune });

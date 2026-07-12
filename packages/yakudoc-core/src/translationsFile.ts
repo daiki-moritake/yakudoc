@@ -1,7 +1,39 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtractedComment } from "./extract";
-import type { TranslationsFile } from "./types";
+import type { TranslationEntry, TranslationsFile } from "./types";
+
+/** translations.json の既定の相対パス */
+export const TRANSLATIONS_RELATIVE_PATH = path.join(
+  ".yakudoc",
+  "translations.json"
+);
+
+/**
+ * translations.json のパスを解決する(全コマンド・全エンジン共通)。
+ * outPath 未指定なら projectDir/.yakudoc/translations.json。
+ */
+export function resolveTranslationsPath(
+  projectDir: string,
+  outPath?: string
+): string {
+  return path.resolve(projectDir, outPath ?? TRANSLATIONS_RELATIVE_PATH);
+}
+
+/**
+ * エントリが「翻訳待ち」かを判定する(status・翻訳エンジン共通)。
+ * 訳文が空、または訳文の言語が現在の翻訳先と異なる場合に翻訳待ちとなる。
+ * lang が無いエントリは現在の翻訳先の訳とみなす(既存ファイルの互換のため)。
+ */
+export function needsTranslation(
+  entry: TranslationEntry,
+  targetLang: string
+): boolean {
+  return (
+    !entry.translated ||
+    (entry.lang !== undefined && entry.lang !== targetLang)
+  );
+}
 
 /** translations.json を読み込む。存在しなければ undefined */
 export function readTranslations(filePath: string): TranslationsFile | undefined {
@@ -19,6 +51,7 @@ export function readTranslations(filePath: string): TranslationsFile | undefined
         original: entry.original,
         translated: typeof entry.translated === "string" ? entry.translated : "",
         ...(entry.symbol !== undefined ? { symbol: entry.symbol } : {}),
+        ...(typeof entry.lang === "string" ? { lang: entry.lang } : {}),
       };
     }
   }
@@ -59,6 +92,10 @@ export function mergeTranslations(
       original: item.original,
       translated: translation,
       symbol: item.symbol,
+      // 訳文を引き継ぐ場合はその言語タグも一緒に引き継ぐ
+      ...(translation && previous?.lang !== undefined
+        ? { lang: previous.lang }
+        : {}),
     };
   }
 

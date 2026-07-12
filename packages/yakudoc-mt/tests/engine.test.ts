@@ -99,6 +99,47 @@ describe("translatePending", () => {
     );
   });
 
+  it("書き込んだ訳文には言語タグが付く", async () => {
+    const translationsPath = makeProject();
+    await translatePending(translationsPath, fakeTranslate);
+
+    const translations = readTranslations(translationsPath)!;
+    assert.equal(translations[hashText(PENDING_PLAIN)].lang, "ja");
+    // 触れていない翻訳済みエントリにはタグを付けない
+    assert.equal(translations[hashText(DONE)].lang, undefined);
+  });
+
+  it("翻訳先言語と異なる言語タグの訳は翻訳し直す", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-mt-lang-"));
+    tempDirs.push(dir);
+    const translationsPath = path.join(dir, ".yakudoc", "translations.json");
+    writeTranslations(translationsPath, {
+      [hashText(PENDING_PLAIN)]: {
+        original: PENDING_PLAIN,
+        translated: "2つの数を加算します。",
+        lang: "ja",
+      },
+    });
+
+    const german: TranslateFn = async (texts) =>
+      texts.map(() => "Addiert zwei Zahlen.");
+    const summary = await translatePending(
+      translationsPath,
+      german,
+      () => {},
+      4,
+      "de"
+    );
+
+    assert.equal(summary.pending, 1);
+    const translations = readTranslations(translationsPath)!;
+    assert.equal(
+      translations[hashText(PENDING_PLAIN)].translated,
+      "Addiert zwei Zahlen."
+    );
+    assert.equal(translations[hashText(PENDING_PLAIN)].lang, "de");
+  });
+
   it("翻訳待ちが無ければ翻訳関数を呼ばない", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-mt-empty-"));
     tempDirs.push(dir);

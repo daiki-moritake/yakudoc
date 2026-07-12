@@ -1,5 +1,10 @@
-import * as path from "node:path";
-import { readTranslations } from "./translationsFile";
+import { configPathFor, resolveTargetLang } from "./config";
+import { DEFAULT_TARGET_LANG } from "./languages";
+import {
+  needsTranslation,
+  readTranslations,
+  resolveTranslationsPath,
+} from "./translationsFile";
 import type { TranslationsFile } from "./types";
 
 /** 翻訳待ちの 1 エントリ。status の一覧表示に使う */
@@ -20,13 +25,18 @@ export interface StatusCounts {
  * translations.json の内容から進捗を集計する(純粋関数・ファイル I/O なし)。
  *
  * extract と違いソースの再走査は行わないため stale は数えない。
- * translated が空文字列のエントリを「翻訳待ち」として集計・列挙する。
+ * 訳文が空、または訳文の言語が targetLang と異なるエントリを
+ * 「翻訳待ち」として集計・列挙する(言語を切り替えた場合、旧言語の訳は
+ * 完了扱いにならない)。
  */
-export function computeStatus(translations: TranslationsFile): StatusCounts {
+export function computeStatus(
+  translations: TranslationsFile,
+  targetLang: string = DEFAULT_TARGET_LANG
+): StatusCounts {
   const pending: PendingEntry[] = [];
   let translated = 0;
   for (const entry of Object.values(translations)) {
-    if (entry.translated) {
+    if (!needsTranslation(entry, targetLang)) {
       translated += 1;
     } else {
       pending.push({ symbol: entry.symbol ?? "", original: entry.original });
@@ -60,20 +70,24 @@ export interface StatusOptions {
 
 export interface StatusSummary extends StatusCounts {
   outPath: string;
+  /** 集計に使った翻訳先言語(config.json から解決) */
+  targetLang: string;
 }
 
 /**
  * translations.json を読み込んで進捗を集計する。
+ * 翻訳先言語は .yakudoc/config.json から解決する(無ければ既定の ja)。
  * ファイルが存在しなければ undefined(CLI 側で extract 誘導のメッセージを出す)。
  */
 export function statusProject(options: StatusOptions): StatusSummary | undefined {
-  const outPath = path.resolve(
-    options.projectDir,
-    options.outPath ?? path.join(".yakudoc", "translations.json")
-  );
+  const outPath = resolveTranslationsPath(options.projectDir, options.outPath);
   const translations = readTranslations(outPath);
   if (!translations) {
     return undefined;
   }
-  return { outPath, ...computeStatus(translations) };
+  const targetLang = resolveTargetLang(
+    undefined,
+    configPathFor(options.projectDir)
+  );
+  return { outPath, targetLang, ...computeStatus(translations, targetLang) };
 }

@@ -91,4 +91,18 @@ describe("resolveModel", () => {
       /未対応の言語コード/
     );
   });
+
+  it("言語コードを導出できない明示モデルには警告を付ける", () => {
+    const r = resolveModel(
+      { explicitModel: "Xenova/opus-mt-en-jap", targetLang: "de" },
+      4 * GB
+    );
+    assert.equal(r.tgtLang, undefined);
+    assert.ok(r.warning?.includes("言語ペア固定"));
+  });
+
+  it("言語コードを導出できるモデルには警告を付けない", () => {
+    const r = resolveModel({ explicitModel: "x/y-nllb", targetLang: "de" }, 4 * GB);
+    assert.equal(r.warning, undefined);
+  });
 });

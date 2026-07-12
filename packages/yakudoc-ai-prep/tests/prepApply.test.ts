@@ -116,21 +116,69 @@ describe("prepare", () => {
     assert.ok(prompt.includes("--apply .yakudoc/ai/response.json"));
   });
 
-  it("ja 以外でも用語集が依頼文に反映される", () => {
+  it("ja 以外は言語別の glossary.<code>.json を使う", () => {
     const dir = makeProject();
     fs.mkdirSync(path.join(dir, ".yakudoc"), { recursive: true });
     fs.writeFileSync(
-      path.join(dir, ".yakudoc", "glossary.json"),
+      path.join(dir, ".yakudoc", "glossary.de.json"),
       JSON.stringify({ user: "Benutzer" })
     );
     const summary = prepare({ projectDir: dir, targetLang: "de" })!;
+    assert.ok(summary.glossaryPath.endsWith("glossary.de.json"));
     assert.ok(
       fs.readFileSync(summary.promptPath, "utf8").includes("- user → Benutzer")
     );
   });
 
+  it("日本語向けの glossary.json は他言語の依頼文に混入しない", () => {
+    const dir = makeProject();
+    fs.mkdirSync(path.join(dir, ".yakudoc"), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, ".yakudoc", "glossary.json"),
+      JSON.stringify({ callback: "コールバック" })
+    );
+
+    const summary = prepare({ projectDir: dir, targetLang: "de" })!;
+
+    const prompt = fs.readFileSync(summary.promptPath, "utf8");
+    assert.ok(!prompt.includes("コールバック"));
+    // 空の言語別用語集が新設され、依頼文はそのファイル名を案内する
+    assert.ok(prompt.includes("glossary.de.json"));
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(path.join(dir, ".yakudoc", "glossary.de.json"), "utf8")),
+      {}
+    );
+  });
+
+  it("訳文の言語が翻訳先と異なるエントリは再度書き出す", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-ai-lang-"));
+    tempDirs.push(dir);
+    writeTranslations(path.join(dir, ".yakudoc", "translations.json"), {
+      [hashText(DONE)]: {
+        original: DONE,
+        translated: "APIからユーザーデータを取得します。",
+        lang: "ja",
+      },
+    });
+
+    const summary = prepare({ projectDir: dir, targetLang: "de" })!;
+    assert.equal(summary.pending, 1);
+  });
+
   it("未対応の targetLang はエラーにする", () => {
     const dir = makeProject();
+    assert.throws(
+      () => prepare({ projectDir: dir, targetLang: "xx" }),
+      /未対応の言語コード/
+    );
+  });
+
+  it("翻訳待ちが 0 件でも不正な言語コードはエラーにする", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-ai-lang0-"));
+    tempDirs.push(dir);
+    writeTranslations(path.join(dir, ".yakudoc", "translations.json"), {
+      [hashText(DONE)]: { original: DONE, translated: "訳済み。" },
+    });
     assert.throws(
       () => prepare({ projectDir: dir, targetLang: "xx" }),
       /未対応の言語コード/
@@ -158,6 +206,8 @@ describe("applyResponse", () => {
     const translations = readTranslations(
       path.join(dir, ".yakudoc", "translations.json")
     )!;
+    // request.json の targetLanguage が言語タグとして付く
+    assert.equal(translations[hashText(PENDING)].lang, "ja");
     assert.equal(
       translations[hashText(PENDING)].translated,
       "`UserData` オブジェクトを返します。{@link fetchUser} を参照してください。"

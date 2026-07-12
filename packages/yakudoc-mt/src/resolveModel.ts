@@ -55,6 +55,8 @@ export interface ResolvedModel extends ModelSpec {
   targetLang: string;
   /** 選択理由(ログ用) */
   reason: string;
+  /** ユーザーに伝えるべき注意事項(あれば CLI が表示する) */
+  warning?: string;
 }
 
 /**
@@ -92,12 +94,23 @@ export function resolveModel(
   const lang = resolveLanguage(input.targetLang ?? DEFAULT_TARGET_LANG);
 
   if (input.explicitModel) {
+    const codes = langCodesFor(input.explicitModel, lang);
     return {
       model: input.explicitModel,
-      ...langCodesFor(input.explicitModel, lang),
+      ...codes,
       targetLang: lang.code,
       label: `指定モデル (${input.explicitModel})`,
       reason: `明示指定: ${input.explicitModel}`,
+      // 言語コードを導出できないモデルでは --lang がモデルに伝わらないため、
+      // 黙って無視せずユーザーに知らせる(言語ペア固定のモデルなら問題ない)
+      ...(codes.tgtLang === undefined
+        ? {
+            warning:
+              `モデル名からアーキテクチャを判別できないため、翻訳先言語(${lang.code})を` +
+              `モデルに渡しません。言語ペア固定のモデル(opus-mt など)であれば` +
+              `このままで問題ありません。`,
+          }
+        : {}),
     };
   }
 

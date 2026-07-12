@@ -6,6 +6,7 @@ import { after, describe, it } from "node:test";
 import type { ExtractedComment } from "../src/extract";
 import {
   mergeTranslations,
+  needsTranslation,
   readTranslations,
   writeTranslations,
 } from "../src/translationsFile";
@@ -21,6 +22,33 @@ after(() => {
 function item(hash: string, original: string, symbol = "src/a.ts#x"): ExtractedComment {
   return { hash, original, symbol };
 }
+
+describe("needsTranslation", () => {
+  it("訳文が空なら翻訳待ち", () => {
+    assert.equal(needsTranslation({ original: "A.", translated: "" }, "ja"), true);
+  });
+
+  it("言語タグが翻訳先と一致すれば翻訳済み", () => {
+    assert.equal(
+      needsTranslation({ original: "A.", translated: "訳A", lang: "ja" }, "ja"),
+      false
+    );
+  });
+
+  it("言語タグが翻訳先と異なれば翻訳待ちに戻る", () => {
+    assert.equal(
+      needsTranslation({ original: "A.", translated: "訳A", lang: "ja" }, "de"),
+      true
+    );
+  });
+
+  it("言語タグが無い既存エントリは現在の翻訳先の訳とみなす", () => {
+    assert.equal(
+      needsTranslation({ original: "A.", translated: "訳A" }, "de"),
+      false
+    );
+  });
+});
 
 describe("mergeTranslations", () => {
   it("新規原文は翻訳待ちとして追加される", () => {
@@ -47,6 +75,16 @@ describe("mergeTranslations", () => {
     assert.equal(merged.aaaa.translated, "こんにちは。");
     assert.equal(merged.aaaa.symbol, "src/a.ts#x");
     assert.equal(stats.translated, 1);
+  });
+
+  it("訳文を引き継ぐとき言語タグも引き継ぐ", () => {
+    const existing = {
+      aaaa: { original: "Hello.", translated: "こんにちは。", lang: "ja" },
+    };
+    const { merged } = mergeTranslations(existing, [item("aaaa", "Hello.")], {
+      prune: false,
+    });
+    assert.equal(merged.aaaa.lang, "ja");
   });
 
   it("抽出に現れなかったエントリは既定で残し、prune で削除する", () => {

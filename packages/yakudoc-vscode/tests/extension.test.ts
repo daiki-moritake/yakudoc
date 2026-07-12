@@ -89,12 +89,29 @@ describe("yakudoc.toggle", () => {
 });
 
 describe("yakudoc.init / yakudoc.extract / yakudoc.showStatus", () => {
-  it("init は yakudoc ターミナルで npx yakudoc init を実行する", async () => {
+  it("init は yakudoc ターミナルで npx yakudoc init を実行し、再起動の導線を出す", async () => {
     const state = await activateWith({ hasTsExtension: true });
     await state.runCommand("yakudoc.init");
 
     assert.equal(state.terminals.length, 1);
     assert.deepEqual(state.terminals[0].sentText, ["npx yakudoc init"]);
+    // ターミナル完了は検知できないため、再起動ボタン付きの案内を出す
+    assert.ok(
+      state.messages.some(
+        (m) => m.kind === "info" && m.message.includes("TS Server の再起動")
+      )
+    );
+    assert.ok(!state.executedCommands.includes("typescript.restartTsServer"));
+  });
+
+  it("init の案内で「再起動」を選ぶと TS Server を再起動する", async () => {
+    const state = await activateWith({
+      hasTsExtension: true,
+      infoResponses: { "init をターミナルで実行": "再起動" },
+    });
+    await state.runCommand("yakudoc.init");
+
+    assert.ok(state.executedCommands.includes("typescript.restartTsServer"));
   });
 
   it("extract は yakudoc ターミナルで npx yakudoc extract を実行する", async () => {
@@ -165,6 +182,29 @@ describe("yakudoc.registerPlugin", () => {
     assert.equal(fs.readFileSync(tsconfigPath, "utf8"), content);
     assert.ok(state.messages.some((m) => m.message.includes("すべて登録済み")));
     assert.ok(!state.executedCommands.includes("typescript.restartTsServer"));
+  });
+
+  it("plugins が配列以外の tsconfig は警告して壊さない", async () => {
+    const dir = tempDir();
+    const tsconfigPath = path.join(dir, "tsconfig.json");
+    const content = `{
+  "compilerOptions": { "plugins": {} }
+}`;
+    fs.writeFileSync(tsconfigPath, content);
+
+    const state = await activateWith({
+      hasTsExtension: true,
+      findFilesResult: [tsconfigPath],
+    });
+    await state.runCommand("yakudoc.registerPlugin");
+
+    assert.ok(
+      state.messages.some(
+        (m) => m.kind === "warning" && m.message.includes("編集できません")
+      )
+    );
+    // ファイルは書き換えない
+    assert.equal(fs.readFileSync(tsconfigPath, "utf8"), content);
   });
 
   it("tsconfig.json が見つからなければ警告する", async () => {

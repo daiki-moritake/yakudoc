@@ -1,4 +1,6 @@
 import {
+  DEFAULT_TARGET_LANG,
+  needsTranslation,
   placeholderToken,
   protectText,
   readTranslations,
@@ -25,13 +27,16 @@ const DEFAULT_BATCH_SIZE = 4;
  *
  * - 原文はプレースホルダー保護してからモデルに渡す
  * - 保護トークンが訳文から消えたエントリは採用せず、翻訳待ちのまま残す
+ * - 書き込んだ訳文には言語タグ(lang)を付与する。翻訳先言語と異なる
+ *   言語タグを持つ既存の訳は「翻訳待ち」として翻訳し直す
  * - バッチごとに書き込むのではなく、全件処理後に一度だけ書き込む
  */
 export async function translatePending(
   translationsPath: string,
   translate: TranslateFn,
   log: (message: string) => void = () => {},
-  batchSize: number = DEFAULT_BATCH_SIZE
+  batchSize: number = DEFAULT_BATCH_SIZE,
+  targetLang: string = DEFAULT_TARGET_LANG
 ): Promise<MtSummary> {
   const translations = readTranslations(translationsPath);
   if (!translations) {
@@ -40,8 +45,8 @@ export async function translatePending(
     );
   }
 
-  const pending = Object.entries(translations).filter(
-    ([, entry]) => !entry.translated
+  const pending = Object.entries(translations).filter(([, entry]) =>
+    needsTranslation(entry, targetLang)
   );
   const summary: MtSummary = { pending: pending.length, applied: 0, skipped: [] };
   if (pending.length === 0) {
@@ -72,6 +77,7 @@ export async function translatePending(
         return;
       }
       entry.translated = text;
+      entry.lang = targetLang;
       summary.applied += 1;
     });
 

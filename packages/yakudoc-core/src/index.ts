@@ -1,5 +1,5 @@
 export {
-  configPathBeside,
+  configPathFor,
   readConfig,
   resolveTargetLang,
   writeConfig,
@@ -29,7 +29,10 @@ export {
 } from "./init";
 export {
   mergeTranslations,
+  needsTranslation,
   readTranslations,
+  resolveTranslationsPath,
+  TRANSLATIONS_RELATIVE_PATH,
   writeTranslations,
   type MergeStats,
 } from "./translationsFile";
