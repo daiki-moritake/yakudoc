@@ -42,7 +42,7 @@ This is a monorepo consisting of the following packages.
 
 | Package | Role |
 | --- | --- |
-| `yakudoc` | Extracts JSDoc from the AST and manages the translation file |
+| `yakudoc` | The CLI (`init` / `extract` / `status` / `translate` / `doctor`). Extracts JSDoc and manages the translation file |
 | `yakudoc-ts-plugin` | The `tsserver` plugin that swaps the displayed documentation |
 | `yakudoc-vscode` | VSCode extension: auto-registers the plugin in `tsconfig.json`, toggle UI, etc. |
 | `yakudoc-mt` (optional) | Bundles an open-weight translation model for fully offline translation |
@@ -52,19 +52,16 @@ You only need one of `yakudoc-mt` / `yakudoc-ai-prep` — there is no need to in
 
 ## Setup
 
-### 1. Install
+### 1. Install and run init
 
 ```bash
 npm install --save-dev yakudoc yakudoc-ts-plugin
-```
-
-### 2. Run init
-
-```bash
 npx yakudoc init
 ```
 
-This registers `yakudoc-ts-plugin` in your tsconfig.json (preserving comments) and runs the initial extraction in one go. It is safe to re-run: registration is skipped when already present, and existing translations are kept.
+`init` registers `yakudoc-ts-plugin` in your tsconfig.json (preserving comments) and runs the initial extraction in one go. It is safe to re-run: registration is skipped when already present, and existing translations are kept.
+
+Just want a quick look? Running `npx yakudoc init` before installing anything also works — init tells you which packages are still missing.
 
 If you prefer to configure things manually, add the following to tsconfig.json:
 
@@ -86,11 +83,11 @@ From the command palette (`Cmd/Ctrl+Shift+P`) you can run the following without 
 
 | Command | Action |
 | --- | --- |
-| `yakudoc: 導入を実行 (init)` | Runs `npx yakudoc init` in the integrated terminal |
-| `yakudoc: 翻訳対象を抽出 (extract)` | Runs `npx yakudoc extract` in the integrated terminal |
-| `yakudoc: 翻訳の進捗を表示 (status)` | Runs `npx yakudoc status` in the integrated terminal |
-| `yakudoc: 翻訳表示を切り替え (JP/EN)` | Toggles between original and translated display |
-| `yakudoc: tsconfig.json にプラグインを登録` | Adds the plugin to an unregistered `tsconfig.json` |
+| `yakudoc: Run setup (init)` | Runs `npx yakudoc init` in the integrated terminal |
+| `yakudoc: Extract JSDoc to translate (extract)` | Runs `npx yakudoc extract` in the integrated terminal |
+| `yakudoc: Show translation progress (status)` | Runs `npx yakudoc status` in the integrated terminal |
+| `yakudoc: Toggle translated docs (original / translated)` | Toggles between original and translated display |
+| `yakudoc: Register plugin in tsconfig.json` | Adds the plugin to an unregistered `tsconfig.json` |
 
 ## Usage
 
@@ -140,6 +137,8 @@ npx yakudoc status --fail-on-pending       # exit 1 if anything is untranslated 
 
 ### Translate
 
+There are two engines. When only one of them is installed, `--engine` can be omitted — plain `npx yakudoc translate` picks it automatically.
+
 #### Option A: use the built-in model
 
 ```bash
@@ -147,7 +146,7 @@ npm install --save-dev yakudoc-mt
 npx yakudoc translate --engine local
 ```
 
-Offline, no API key required — translations are written straight into `translations.json`. It uses an open-weight translation model, so it favors convenience over polish. The model is downloaded on first run.
+Offline, no API key required — translations are written straight into `translations.json`. It uses an open-weight translation model, so it favors convenience over polish. The model is downloaded on first run (progress is printed in 10% steps).
 
 The model can be chosen to match your machine. The default is `auto`, which picks a size based on installed memory.
 
@@ -191,6 +190,18 @@ Protected tokens (`<ph0>` etc.) are restored on write-back. A translation missin
 ### See it in the editor
 
 Once `translations.json` is saved, the `tsserver` plugin detects the file change automatically and updates the display. No editor restart required.
+
+### When something doesn't work
+
+Diagnose your setup with:
+
+```bash
+npx yakudoc doctor
+```
+
+It checks five things — plugin registration (tsconfig.json), the plugin package itself, translations.json, the target language config, and translation engines — and prints the exact command to fix whatever is broken. Exits with code 1 while problems remain.
+
+If every check passes but hovers still show English, run "TypeScript: Restart TS Server" from the command palette.
 
 ## Choosing the target language
 

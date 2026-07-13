@@ -42,7 +42,7 @@ VSCode の JS/TS 言語機能（ホバー表示・補完の説明・シグネチ
 
 | パッケージ | 役割 |
 | --- | --- |
-| `yakudoc` | AST から JSDoc を抽出し、翻訳ファイルを生成・管理する |
+| `yakudoc` | CLI 本体（`init` / `extract` / `status` / `translate` / `doctor`）。JSDoc の抽出と翻訳ファイルの管理を行う |
 | `yakudoc-ts-plugin` | `tsserver` に登録するプラグイン本体。表示の差し替えを行う |
 | `yakudoc-vscode` | VSCode 拡張。`tsconfig.json` へのプラグイン自動登録、有効/無効の切り替え UI などを提供 |
 | `yakudoc-mt`（オプション） | オープンウェイトの翻訳モデルを内蔵し、コマンド一つで翻訳を完結させる |
@@ -52,19 +52,16 @@ VSCode の JS/TS 言語機能（ホバー表示・補完の説明・シグネチ
 
 ## セットアップ
 
-### 1. インストール
+### 1. インストールして init を実行
 
 ```bash
 npm install --save-dev yakudoc yakudoc-ts-plugin
-```
-
-### 2. init を実行
-
-```bash
 npx yakudoc init
 ```
 
-tsconfig.json への `yakudoc-ts-plugin` の登録（コメントを保持したまま追記）と、初回の抽出（extract）をまとめて実行します。再実行しても安全です（登録済みならスキップし、既存の訳文は保持されます）。
+`init` は、tsconfig.json への `yakudoc-ts-plugin` の登録（コメントを保持したまま追記）と、初回の抽出（extract）をまとめて実行します。再実行しても安全です（登録済みならスキップし、既存の訳文は保持されます）。
+
+まず試すだけなら、インストール前に `npx yakudoc init` を一発実行するだけでも動きます（不足しているパッケージがあれば、何を入れればよいか init が教えてくれます）。
 
 手動で設定したい場合は、tsconfig.json に次を追記してください。
 
@@ -89,7 +86,7 @@ Marketplace から「yakudoc」を検索してインストールすると、`tsc
 | `yakudoc: 導入を実行 (init)` | `npx yakudoc init` を統合ターミナルで実行する |
 | `yakudoc: 翻訳対象を抽出 (extract)` | `npx yakudoc extract` を統合ターミナルで実行する |
 | `yakudoc: 翻訳の進捗を表示 (status)` | `npx yakudoc status` を統合ターミナルで実行する |
-| `yakudoc: 翻訳表示を切り替え (JP/EN)` | 原文表示と日本語訳表示を切り替える |
+| `yakudoc: 翻訳表示を切り替え（原文 / 翻訳）` | 原文表示と翻訳表示を切り替える |
 | `yakudoc: tsconfig.json にプラグインを登録` | プラグインを未登録の `tsconfig.json` に追記する |
 
 ## 使い方
@@ -140,6 +137,8 @@ npx yakudoc status --fail-on-pending       # 未翻訳が残っていれば exit
 
 ### 翻訳の実行
 
+エンジンは 2 種類あります。インストール済みのエンジンが 1 つだけなら `--engine` は省略できます（`npx yakudoc translate` だけで動きます）。
+
 #### オプション A：内蔵モデルで翻訳する
 
 ```bash
@@ -147,7 +146,7 @@ npm install --save-dev yakudoc-mt
 npx yakudoc translate --engine local
 ```
 
-オフライン・API キー不要で `translations.json` に直接書き込まれます。オープンウェイトの翻訳モデルを使うため、精度よりも手軽さを優先する場合に向いています。初回はモデルのダウンロードが走ります。
+オフライン・API キー不要で `translations.json` に直接書き込まれます。オープンウェイトの翻訳モデルを使うため、精度よりも手軽さを優先する場合に向いています。初回はモデルのダウンロードが走ります（進捗が 10% 刻みで表示されます）。
 
 モデルは PC のリソースに合わせて切り替えられます。既定は `auto` で、搭載メモリからサイズを自動選択します。
 
@@ -191,6 +190,27 @@ npx yakudoc translate --engine prep --apply .yakudoc/ai/response.json
 ### 反映
 
 `translations.json` を保存すると、`tsserver` プラグインがファイルの変更を自動検知して表示に反映します。エディタの再起動は不要です。
+
+### うまく動かないとき
+
+導入状態を診断できます。
+
+```bash
+npx yakudoc doctor
+```
+
+プラグインの登録（tsconfig.json）・プラグイン本体のインストール・translations.json・翻訳先言語・翻訳エンジンの 5 点を検査し、問題があれば対処コマンドを表示します。問題が残っている場合は終了コード 1 を返します。
+
+```text
+✔ プラグイン登録: tsconfig.json に yakudoc-ts-plugin を登録済み
+✖ プラグイン本体: yakudoc-ts-plugin が node_modules に見つかりません
+    tsserver は解決できないプラグインを黙って無視するため、このままでは表示が変わりません:
+      npm install --save-dev yakudoc-ts-plugin
+✔ translations.json: .yakudoc/translations.json（全 20 件 / 翻訳済み 12 / 翻訳待ち 8）
+…
+```
+
+すべて ✔ なのに表示が変わらないときは、コマンドパレットから「TypeScript: Restart TS Server」を実行してください。
 
 ## 翻訳先言語を変える
 
