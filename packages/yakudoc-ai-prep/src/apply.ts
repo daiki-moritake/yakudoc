@@ -1,14 +1,19 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  applyTranslation,
   DEFAULT_TARGET_LANG,
+  loadSourcesAt,
   placeholderToken,
-  readTranslations,
   restoreText,
-  writeTranslations,
+  writeSources,
   type EngineRunOptions,
 } from "yakudoc";
-import { resolveTranslationsPath, type RequestFile } from "./prep";
+import {
+  resolveTargetPaths,
+  resolveTranslationsPath,
+  type RequestFile,
+} from "./prep";
 
 export interface ApplySummary {
   applied: number;
@@ -16,20 +21,24 @@ export interface ApplySummary {
 }
 
 /**
- * LLM から返ってきた翻訳結果 JSON({ hash: 訳文 })を translations.json に
- * 書き戻す。プレースホルダーを復元し、トークンが欠けた訳文は採用しない。
+ * LLM から返ってきた翻訳結果 JSON({ hash: 訳文 })を書き戻す。
+ * 対象は translations.json と翻訳パックの全ファイルで、ハッシュの一致する
+ * すべてのファイルへ反映する。プレースホルダーを復元し、トークンが欠けた
+ * 訳文は採用しない。
  */
 export function applyResponse(
   options: EngineRunOptions & { applyPath: string }
 ): ApplySummary {
-  const translationsPath = resolveTranslationsPath(options);
-  const translations = readTranslations(translationsPath);
-  if (!translations) {
-    throw new Error(`${translationsPath} が見つかりません。`);
+  const targetPaths = resolveTargetPaths(options);
+  const sources = loadSourcesAt(targetPaths);
+  if (sources.length === 0) {
+    throw new Error(
+      `翻訳対象のファイルが見つかりません(${targetPaths.join(", ")})。`
+    );
   }
 
   const requestPath = path.join(
-    path.dirname(translationsPath),
+    path.dirname(resolveTranslationsPath(options)),
     "ai",
     "request.json"
   );
@@ -55,11 +64,6 @@ export function applyResponse(
       summary.skipped.push(`${hash}: 訳文が空です`);
       continue;
     }
-    const entry = translations[hash];
-    if (!entry) {
-      summary.skipped.push(`${hash}: translations.json に存在しないキーです`);
-      continue;
-    }
     const placeholders = request?.entries[hash]?.placeholders ?? [];
     const { text, missing } = restoreText(translatedRaw.trim(), placeholders);
     if (missing.length > 0) {
@@ -68,12 +72,15 @@ export function applyResponse(
       );
       continue;
     }
-    entry.translated = text;
-    entry.lang = appliedLang;
+    const applied = applyTranslation(sources, hash, text, appliedLang);
+    if (applied === 0) {
+      summary.skipped.push(`${hash}: 翻訳対象に存在しないキーです`);
+      continue;
+    }
     summary.applied += 1;
   }
 
-  writeTranslations(translationsPath, translations);
+  writeSources(sources);
   return summary;
 }
 

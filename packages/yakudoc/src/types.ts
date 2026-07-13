@@ -26,6 +26,12 @@ export interface EngineRunOptions {
   projectDir: string;
   /** translations.json のパス(省略時: .yakudoc/translations.json) */
   translationsPath?: string;
+  /**
+   * 翻訳対象ファイルの一覧(translations.json と .yakudoc/packs/ 以下の
+   * 翻訳パック)。CLI が解決して渡す。省略時はエンジン側が
+   * translationsPath(またはその既定)1 ファイルのみを対象にする。
+   */
+  translationsPaths?: string[];
   /** 翻訳結果 JSON を書き戻す場合、そのファイルのパス */
   applyPath?: string;
   /** yakudoc-mt: 使用するモデルの HF id を明示する(modelSize より優先) */

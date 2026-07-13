@@ -3,39 +3,61 @@ import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as path from "node:path";
 import { parseArgs } from "node:util";
-import { configPathFor, resolveTargetLang } from "./config";
+import { addPackage, type AddPackageSummary } from "./addPack";
+import { configPathFor, readConfig, resolveTargetLang } from "./config";
 import { doctorProject, type DoctorLevel } from "./doctor";
 import { selectEngine } from "./engineSelect";
 import { extractProject, type ExtractSummary } from "./extract";
 import { initProject, PLUGIN_NAME } from "./init";
 import { resolveInstalledPackage } from "./installed";
 import { DEFAULT_TARGET_LANG } from "./languages";
+import {
+  listPacks,
+  packFileNameFor,
+  packPathFor,
+  readPack,
+  removePack,
+  resolvePacksDir,
+  writePack,
+} from "./packs";
+import { PACKS_REPO_URL } from "./registry";
 import { statusExitCode, statusProject, type PendingEntry } from "./status";
+import { resolveTranslationsPath } from "./translationsFile";
 import type { EngineRunOptions } from "./types";
 
 const USAGE = `使い方: yakudoc <command> [options]
 
 コマンド:
-  init         導入を一括で行う(tsconfig.json へのプラグイン登録 + 初回 extract)
-  extract      プロジェクトの JSDoc を走査し、.yakudoc/translations.json に
-               翻訳待ちの原文を書き出す(既存の訳文は保持される)
-  status       translations.json を書き換えずに翻訳の進捗を表示する
-  translate    翻訳エンジンを実行する
-  doctor       導入状態を診断する(プラグイン登録・インストール・翻訳ファイル)
+  add <pkg...>     依存ライブラリの翻訳パックを作成・更新する。
+                   node_modules の型定義から JSDoc を抽出し、公開済みの
+                   コミュニティ翻訳パックがあれば訳文を自動適用する
+  remove <pkg...>  依存ライブラリの翻訳パックを削除する
+  init             導入を一括で行う(tsconfig.json へのプラグイン登録 + 初回 extract)
+  extract          自分のコードの JSDoc を .yakudoc/translations.json に書き出す
+                   (既存の訳文は保持される)
+  status           翻訳の進捗を表示する(translations.json + 全パック)
+  translate        翻訳エンジンを実行する(translations.json + 全パック)
+  export <pkg>     翻訳パックを共有用にカレントディレクトリへ書き出す
+  doctor           導入状態を診断する(プラグイン登録・インストール・翻訳ファイル)
 
 オプション:
   -p, --project <path>   tsconfig.json のパス(既定: カレントから探索)
       --out <path>       translations.json のパス(既定: .yakudoc/translations.json)
-      --prune            [extract] ソースから消えた原文のエントリを削除する
+      --prune            [extract/add] ソースから消えた原文のエントリを削除する
       --json             [status] 進捗を機械可読な JSON で出力する
       --fail-on-pending  [status] 翻訳待ちが残っていれば終了コード 1(CI 用)
-      --lang <code>      [init/translate] 翻訳先の言語コード(既定: ja)。
+      --lang <code>      [init/add/translate] 翻訳先の言語コード(既定: ja)。
                          init で指定すると .yakudoc/config.json に保存され、
-                         以後の translate はそれを使う
+                         以後の add / translate はそれを使う
       --engine <name>    [translate] prep(AI 用下準備)/ local(内蔵モデル)。
                          省略時はインストール済みのエンジンを自動選択する
                          (1 つだけの場合)
-      --apply <path>     [translate] 翻訳結果 JSON を translations.json に書き戻す
+      --apply <path>     [translate] 翻訳結果 JSON を書き戻す
+      --pkg <name>       [translate] 対象を指定パッケージのパックだけに絞る
+                         (複数指定可)
+      --no-fetch         [add] コミュニティ翻訳パックを取得しない(オフライン)
+      --registry <url>   [add] コミュニティ翻訳パックの取得元 URL を上書きする
+      --to <path>        [export] 書き出し先(既定: ./<パッケージ名>.json)
       --model-size <s>   [translate --engine local] small | large | auto
                          (既定: auto。搭載メモリからモデルを自動選択)
       --model <hf-id>    [translate --engine local] 使用モデルを明示指定
@@ -64,6 +86,47 @@ function loadEngine(packageName: string): TranslateEngineModule {
   }
 }
 
+/**
+ * translate の対象ファイル一覧を解決する。
+ * --pkg 指定時はそのパックだけ、未指定なら translations.json(あれば)+
+ * packs/ 以下の全パック。1 つも無ければ導入手順を案内するエラー。
+ */
+function resolveTranslateTargets(
+  projectDir: string,
+  outPath: string | undefined,
+  packages: string[] | undefined
+): string[] {
+  if (packages && packages.length > 0) {
+    return packages.map((name) => {
+      const packPath = packPathFor(projectDir, name, outPath);
+      if (!fs.existsSync(packPath)) {
+        throw new Error(
+          `${name} の翻訳パックが見つかりません(${packPath})。` +
+            `\n  先に \`yakudoc add ${name}\` を実行してください。`
+        );
+      }
+      return packPath;
+    });
+  }
+
+  const paths: string[] = [];
+  const translationsPath = resolveTranslationsPath(projectDir, outPath);
+  if (fs.existsSync(translationsPath)) {
+    paths.push(translationsPath);
+  }
+  for (const loaded of listPacks(resolvePacksDir(projectDir, outPath))) {
+    paths.push(loaded.filePath);
+  }
+  if (paths.length === 0) {
+    throw new Error(
+      "翻訳対象がありません。先にどちらかを実行してください:\n" +
+        "  npx yakudoc init              (自分のコードの JSDoc を対象にする)\n" +
+        "  npx yakudoc add <パッケージ名>  (依存ライブラリの docs を対象にする)"
+    );
+  }
+  return paths;
+}
+
 async function runTranslate(values: {
   engine?: string;
   out?: string;
@@ -71,6 +134,7 @@ async function runTranslate(values: {
   model?: string;
   "model-size"?: string;
   lang?: string;
+  pkg?: string[];
 }): Promise<void> {
   const selection = selectEngine(values.engine, values.apply, (packageName) =>
     resolveInstalledPackage(process.cwd(), packageName) !== undefined
@@ -79,10 +143,15 @@ async function runTranslate(values: {
     console.log(selection.note);
   }
 
-  // エンジンの読み込み前に言語コードを検証する(--lang > config.json > ja)
+  // エンジンの読み込み前に言語コードと対象ファイルを検証する
   const targetLang = resolveTargetLang(
     values.lang,
     configPathFor(process.cwd())
+  );
+  const translationsPaths = resolveTranslateTargets(
+    process.cwd(),
+    values.out,
+    values.pkg
   );
 
   let engine: TranslateEngineModule;
@@ -98,6 +167,7 @@ async function runTranslate(values: {
   await engine.run({
     projectDir: process.cwd(),
     translationsPath: values.out,
+    translationsPaths,
     applyPath: values.apply,
     model: values.model,
     modelSize: values["model-size"],
@@ -155,14 +225,174 @@ function runInit(values: {
     npm install --save-dev ${PLUGIN_NAME}`);
   }
 
+  const deps = readProjectDependencies(process.cwd());
+  const addExample =
+    deps.length > 0
+      ? `npx yakudoc add ${deps.slice(0, 3).join(" ")}${deps.length > 3 ? " …" : ""}`
+      : "npx yakudoc add <パッケージ名>";
   console.log(`
 次にやること:
-  1. 翻訳を実行する
+  1. 依存ライブラリの翻訳パックを追加する(ホバーに出る docs の大半はここ)
+       ${addExample}
+     公開済みのコミュニティ翻訳パックがあれば、訳文まで自動で入ります
+  2. 残りを翻訳する
        npx yakudoc translate --engine local   (内蔵モデル。要 yakudoc-mt)
        npx yakudoc translate --engine prep    (任意の AI に依頼。要 yakudoc-ai-prep)
-     または translations.json の "translated" を直接編集する
-  2. VSCode でコマンドパレットから「TypeScript: Restart TS Server」を実行する
+     または translations.json / packs 内の "translated" を直接編集する
+  3. VSCode でコマンドパレットから「TypeScript: Restart TS Server」を実行する
      (プラグイン登録を反映するため。以降の翻訳更新は自動で反映されます)`);
+}
+
+/**
+ * package.json の dependencies / devDependencies のパッケージ名一覧
+ * (yakudoc 自身のパッケージは除く)。add の候補表示に使う。
+ */
+function readProjectDependencies(projectDir: string): string[] {
+  try {
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(projectDir, "package.json"), "utf8")
+    ) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const names = new Set<string>([
+      ...Object.keys(pkg.dependencies ?? {}),
+      ...Object.keys(pkg.devDependencies ?? {}),
+    ]);
+    return [...names].filter((name) => !name.startsWith("yakudoc")).sort();
+  } catch {
+    return [];
+  }
+}
+
+/** add の 1 パッケージ分の結果を表示する */
+function printAddSummary(summary: AddPackageSummary): void {
+  const version = summary.version ? `@${summary.version}` : "";
+  console.log(
+    `${summary.name}${version}: 型定義 ${summary.fileCount} ファイルから ${summary.total} 件`
+  );
+  if (summary.fetchResult) {
+    if (summary.fetchResult.status === "found") {
+      console.log(
+        `  コミュニティ翻訳パック: ${summary.fromCommunity} 件の訳文を適用しました`
+      );
+    } else if (summary.fetchResult.status === "not-found") {
+      console.log(
+        "  コミュニティ翻訳パック: 未公開でした(翻訳できたら `yakudoc export` で共有できます)"
+      );
+    } else {
+      console.log(
+        `  コミュニティ翻訳パック: 取得できませんでした(${summary.fetchResult.message})`
+      );
+    }
+  }
+  const percent =
+    summary.total === 0
+      ? 0
+      : Math.round((summary.translated / summary.total) * 100);
+  console.log(
+    `  進捗: ${summary.translated} / ${summary.total} 件 翻訳済み (${percent}%) / 翻訳待ち ${summary.untranslated} 件`
+  );
+  console.log(`  書き出し先: ${path.relative(process.cwd(), summary.filePath)}`);
+}
+
+async function runAdd(
+  values: {
+    out?: string;
+    lang?: string;
+    prune?: boolean;
+    "no-fetch"?: boolean;
+    registry?: string;
+  },
+  names: string[]
+): Promise<void> {
+  if (names.length === 0) {
+    const deps = readProjectDependencies(process.cwd());
+    const candidates =
+      deps.length > 0
+        ? `\n\nこのプロジェクトの依存パッケージ:\n  ${deps.join("  ")}`
+        : "";
+    throw new Error(
+      `追加するパッケージ名を指定してください。例: npx yakudoc add zod${candidates}`
+    );
+  }
+
+  const configPath = configPathFor(process.cwd());
+  const targetLang = resolveTargetLang(values.lang, configPath);
+  const config = readConfig(configPath);
+
+  const summaries: AddPackageSummary[] = [];
+  for (const name of names) {
+    const summary = await addPackage({
+      projectDir: process.cwd(),
+      packageName: name,
+      targetLang,
+      translationsPath: values.out,
+      prune: values.prune,
+      noFetch: values["no-fetch"],
+      registryUrl: values.registry,
+      configRegistryUrl: config.registry,
+      generator: `yakudoc@${cliVersion()}`,
+    });
+    printAddSummary(summary);
+    summaries.push(summary);
+  }
+
+  if (summaries.some((summary) => summary.untranslated > 0)) {
+    console.log(
+      "\n翻訳待ちが残っています。`npx yakudoc translate` で翻訳できます。"
+    );
+  }
+}
+
+function runRemove(values: { out?: string }, names: string[]): void {
+  if (names.length === 0) {
+    throw new Error(
+      "削除するパッケージ名を指定してください。例: npx yakudoc remove zod"
+    );
+  }
+  for (const name of names) {
+    const { removed, filePath } = removePack(process.cwd(), name, values.out);
+    console.log(
+      removed
+        ? `${name} の翻訳パックを削除しました(${path.relative(process.cwd(), filePath)})`
+        : `${name} の翻訳パックはありません(${path.relative(process.cwd(), filePath)})`
+    );
+  }
+}
+
+function runExport(values: { out?: string; to?: string }, names: string[]): void {
+  const name = names[0];
+  if (!name || names.length !== 1) {
+    throw new Error(
+      "書き出すパッケージ名を 1 つ指定してください。例: npx yakudoc export zod"
+    );
+  }
+  const packPath = packPathFor(process.cwd(), name, values.out);
+  const pack = readPack(packPath);
+  if (!pack) {
+    throw new Error(
+      `${name} の翻訳パックが見つかりません(${packPath})。` +
+        `\n  先に \`yakudoc add ${name}\` を実行してください。`
+    );
+  }
+  const targetPath = path.resolve(
+    process.cwd(),
+    values.to ?? packFileNameFor(name)
+  );
+  writePack(targetPath, pack);
+
+  const total = Object.keys(pack.entries).length;
+  const translated = Object.values(pack.entries).filter(
+    (entry) => entry.translated
+  ).length;
+  console.log(`${targetPath} に書き出しました(翻訳済み ${translated} / ${total} 件)`);
+  console.log(`
+このパックをコミュニティに共有するには:
+  1. ${PACKS_REPO_URL} をフォークする
+  2. packs/${pack.lang || "<言語コード>"}/${packFileNameFor(name)} として追加する
+  3. プルリクエストを送る
+共有されたパックは、全ユーザーの \`yakudoc add ${name}\` で自動適用されます。`);
 }
 
 /** 翻訳待ち一覧を「symbol  原文(長ければ省略)」の行に整形する */
@@ -193,7 +423,9 @@ function runStatus(values: {
   });
   if (!summary) {
     throw new Error(
-      "translations.json が見つかりません。先に `yakudoc extract` を実行してください。"
+      "翻訳ファイルが見つかりません。先にどちらかを実行してください:\n" +
+        "  npx yakudoc init              (自分のコードの JSDoc を対象にする)\n" +
+        "  npx yakudoc add <パッケージ名>  (依存ライブラリの docs を対象にする)"
     );
   }
 
@@ -205,7 +437,27 @@ function runStatus(values: {
     const { total, translated, untranslated, pending, targetLang } = summary;
     console.log(
       JSON.stringify(
-        { total, translated, untranslated, pending, targetLang },
+        {
+          total,
+          translated,
+          untranslated,
+          pending,
+          targetLang,
+          project: summary.project
+            ? {
+                total: summary.project.total,
+                translated: summary.project.translated,
+                untranslated: summary.project.untranslated,
+              }
+            : null,
+          packages: summary.packs.map((pack) => ({
+            name: pack.name,
+            version: pack.version,
+            total: pack.total,
+            translated: pack.translated,
+            untranslated: pack.untranslated,
+          })),
+        },
         null,
         2
       )
@@ -213,7 +465,9 @@ function runStatus(values: {
     return;
   }
 
-  console.log(`翻訳ファイル: ${summary.outPath}`);
+  if (summary.packs.length === 0) {
+    console.log(`翻訳ファイル: ${summary.outPath}`);
+  }
   if (summary.targetLang !== DEFAULT_TARGET_LANG) {
     console.log(`翻訳先言語: ${summary.targetLang}`);
   }
@@ -225,6 +479,23 @@ function runStatus(values: {
   console.log(
     `進捗: ${summary.translated} / ${summary.total} 件 翻訳済み (${percent}%) / 翻訳待ち ${summary.untranslated} 件`
   );
+
+  if (summary.packs.length > 0) {
+    console.log("\n内訳:");
+    if (summary.project) {
+      const label = path.relative(process.cwd(), summary.outPath);
+      console.log(
+        `  プロジェクト  ${summary.project.translated}/${summary.project.total}(${label})`
+      );
+    }
+    for (const pack of summary.packs) {
+      const version = pack.version ? `@${pack.version}` : "";
+      console.log(
+        `  ${pack.name}${version}  ${pack.translated}/${pack.total}`
+      );
+    }
+  }
+
   if (summary.pending.length > 0) {
     console.log("\n翻訳待ち:");
     for (const line of formatPending(summary.pending)) {
@@ -241,6 +512,10 @@ const CLI_OPTIONS = {
   "fail-on-pending": { type: "boolean", default: false },
   engine: { type: "string" },
   apply: { type: "string" },
+  pkg: { type: "string", multiple: true },
+  "no-fetch": { type: "boolean", default: false },
+  registry: { type: "string" },
+  to: { type: "string" },
   model: { type: "string" },
   "model-size": { type: "string" },
   lang: { type: "string" },
@@ -328,6 +603,21 @@ async function main(): Promise<void> {
 
   if (command === "init") {
     runInit(values);
+    return;
+  }
+
+  if (command === "add") {
+    await runAdd(values, positionals.slice(1));
+    return;
+  }
+
+  if (command === "remove") {
+    runRemove(values, positionals.slice(1));
+    return;
+  }
+
+  if (command === "export") {
+    runExport(values, positionals.slice(1));
     return;
   }
 

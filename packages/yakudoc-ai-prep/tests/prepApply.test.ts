@@ -3,7 +3,14 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { after, describe, it } from "node:test";
-import { hashText, readTranslations, writeTranslations } from "yakudoc";
+import {
+  hashText,
+  packPathFor,
+  readPack,
+  readTranslations,
+  writePack,
+  writeTranslations,
+} from "yakudoc";
 import { applyResponse } from "../src/apply";
 import { prepare } from "../src/prep";
 
@@ -269,5 +276,86 @@ describe("applyResponse", () => {
     const summary = applyResponse({ projectDir: dir, applyPath: responsePath });
     assert.equal(summary.applied, 0);
     assert.equal(summary.skipped.length, 1);
+  });
+});
+
+describe("prepare / applyResponse(翻訳パック横断)", () => {
+  const SHARED = "Shared between project and pack.";
+  const PACK_ONLY = "Validates the schema.";
+
+  /** translations.json とパックの両方に翻訳待ちを持つプロジェクト */
+  function makeProjectWithPack(): { dir: string; paths: string[] } {
+    const dir = makeProject();
+    const translationsPath = path.join(dir, ".yakudoc", "translations.json");
+    const translations = readTranslations(translationsPath)!;
+    translations[hashText(SHARED)] = { original: SHARED, translated: "" };
+    writeTranslations(translationsPath, translations);
+
+    const packPath = packPathFor(dir, "zod");
+    writePack(packPath, {
+      name: "zod",
+      version: "3.0.0",
+      lang: "ja",
+      entries: {
+        [hashText(SHARED)]: { original: SHARED, translated: "" },
+        [hashText(PACK_ONLY)]: {
+          original: PACK_ONLY,
+          translated: "",
+          symbol: "zod/index.d.ts#validate",
+        },
+      },
+    });
+    return { dir, paths: [translationsPath, packPath] };
+  }
+
+  it("パックの翻訳待ちも 1 つの依頼にまとめ、重複は 1 件にする", () => {
+    const { dir, paths } = makeProjectWithPack();
+    const summary = prepare({ projectDir: dir, translationsPaths: paths })!;
+    // PENDING + SHARED(2 ファイルにあるが 1 件)+ PACK_ONLY
+    assert.equal(summary.pending, 3);
+
+    const request = JSON.parse(fs.readFileSync(summary.requestPath, "utf8"));
+    assert.ok(request.entries[hashText(SHARED)]);
+    assert.ok(request.entries[hashText(PACK_ONLY)]);
+  });
+
+  it("書き戻しはハッシュの一致する全ファイルに反映される", () => {
+    const { dir, paths } = makeProjectWithPack();
+    prepare({ projectDir: dir, translationsPaths: paths });
+
+    const responsePath = path.join(dir, ".yakudoc", "ai", "response.json");
+    fs.writeFileSync(
+      responsePath,
+      JSON.stringify({
+        [hashText(SHARED)]: "プロジェクトとパックで共有。",
+        [hashText(PACK_ONLY)]: "スキーマを検証します。",
+      })
+    );
+
+    const summary = applyResponse({
+      projectDir: dir,
+      translationsPaths: paths,
+      applyPath: responsePath,
+    });
+    assert.equal(summary.applied, 2);
+
+    const translations = readTranslations(paths[0])!;
+    assert.equal(
+      translations[hashText(SHARED)].translated,
+      "プロジェクトとパックで共有。"
+    );
+
+    const pack = readPack(paths[1])!;
+    assert.equal(
+      pack.entries[hashText(SHARED)].translated,
+      "プロジェクトとパックで共有。"
+    );
+    assert.equal(
+      pack.entries[hashText(PACK_ONLY)].translated,
+      "スキーマを検証します。"
+    );
+    // パックのメタデータは保持される
+    assert.equal(pack.version, "3.0.0");
+    assert.equal(pack.lang, "ja");
   });
 });

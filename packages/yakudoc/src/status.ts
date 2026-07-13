@@ -1,10 +1,7 @@
 import { configPathFor, resolveTargetLang } from "./config";
 import { DEFAULT_TARGET_LANG } from "./languages";
-import {
-  needsTranslation,
-  readTranslations,
-  resolveTranslationsPath,
-} from "./translationsFile";
+import { needsTranslation, resolveTranslationsPath } from "./translationsFile";
+import { collectPending, loadProjectSources } from "./translationSet";
 import type { TranslationsFile } from "./types";
 
 /** 翻訳待ちの 1 エントリ。status の一覧表示に使う */
@@ -68,26 +65,98 @@ export interface StatusOptions {
   outPath?: string;
 }
 
+/** 翻訳パック 1 つ分の進捗 */
+export interface PackStatus {
+  name: string;
+  version: string;
+  filePath: string;
+  total: number;
+  translated: number;
+  untranslated: number;
+}
+
+/**
+ * プロジェクト全体の進捗。total / translated / untranslated / pending は
+ * translations.json と全パックを合算した値(pending は原文ハッシュで
+ * 重複排除済み)。project / packs に内訳を持つ。
+ */
 export interface StatusSummary extends StatusCounts {
   outPath: string;
   /** 集計に使った翻訳先言語(config.json から解決) */
   targetLang: string;
+  /** translations.json の内訳(ファイルが無ければ undefined) */
+  project?: StatusCounts;
+  /** 依存パッケージの翻訳パックの内訳(name 順) */
+  packs: PackStatus[];
 }
 
 /**
- * translations.json を読み込んで進捗を集計する。
- * 翻訳先言語は .yakudoc/config.json から解決する(無ければ既定の ja)。
- * ファイルが存在しなければ undefined(CLI 側で extract 誘導のメッセージを出す)。
+ * translations.json と .yakudoc/packs/ 以下の翻訳パックを読み込んで
+ * 進捗を集計する。翻訳先言語は .yakudoc/config.json から解決する。
+ * どのファイルも存在しなければ undefined(CLI 側で導入手順を案内する)。
  */
 export function statusProject(options: StatusOptions): StatusSummary | undefined {
   const outPath = resolveTranslationsPath(options.projectDir, options.outPath);
-  const translations = readTranslations(outPath);
-  if (!translations) {
+  const sources = loadProjectSources(options.projectDir, {
+    translationsPath: options.outPath,
+  });
+  if (sources.length === 0) {
     return undefined;
   }
   const targetLang = resolveTargetLang(
     undefined,
     configPathFor(options.projectDir)
   );
-  return { outPath, targetLang, ...computeStatus(translations, targetLang) };
+
+  let project: StatusCounts | undefined;
+  const packs: PackStatus[] = [];
+  for (const source of sources) {
+    const counts = computeStatus(source.entries, targetLang);
+    if (source.kind === "project") {
+      project = counts;
+    } else {
+      packs.push({
+        name: source.pack?.name ?? source.label,
+        version: source.pack?.version ?? "",
+        filePath: source.filePath,
+        total: counts.total,
+        translated: counts.translated,
+        untranslated: counts.untranslated,
+      });
+    }
+  }
+
+  // 全体の pending は原文ハッシュで重複排除する(同じ原文が複数ファイルに
+  // 現れても翻訳作業は 1 回で済むため、件数もそれに合わせる)
+  const pendingItems = collectPending(sources, targetLang);
+  const pending: PendingEntry[] = pendingItems.map((item) => ({
+    symbol: item.symbol ?? "",
+    original: item.original,
+  }));
+  pending.sort(
+    (a, b) => a.symbol.localeCompare(b.symbol) || a.original.localeCompare(b.original)
+  );
+
+  // 「翻訳済み」= 重複排除した全エントリ − 翻訳待ち。あるファイルでは訳済みで
+  // 別ファイルでは未訳のハッシュは「翻訳待ち」側に数える(collectPending が
+  // いずれかのファイルで未訳ならそのハッシュを翻訳待ちに含めるため)
+  const totals = new Set<string>();
+  for (const source of sources) {
+    for (const hash of Object.keys(source.entries)) {
+      totals.add(hash);
+    }
+  }
+  const total = totals.size;
+  const untranslated = pending.length;
+
+  return {
+    outPath,
+    targetLang,
+    project,
+    packs,
+    total,
+    translated: total - untranslated,
+    untranslated,
+    pending,
+  };
 }

@@ -1,10 +1,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  collectPending,
   DEFAULT_TARGET_LANG,
-  needsTranslation,
+  loadSourcesAt,
   protectText,
-  readTranslations,
   resolveLanguage,
   resolveTranslationsPath as resolveDefaultTranslationsPath,
   type EngineRunOptions,
@@ -42,6 +42,15 @@ export function resolveTranslationsPath(options: EngineRunOptions): string {
 }
 
 /**
+ * 翻訳対象ファイルの一覧。CLI が渡す translationsPaths
+ * (translations.json + 翻訳パック)を優先し、無ければ従来どおり
+ * translations.json 1 ファイル。
+ */
+export function resolveTargetPaths(options: EngineRunOptions): string[] {
+  return options.translationsPaths ?? [resolveTranslationsPath(options)];
+}
+
+/**
  * 言語ごとの用語集パス。既定言語(ja)は従来の glossary.json を使い続け、
  * それ以外は glossary.<code>.json に分ける(日本語向けに育てた用語集が
  * 他言語の依頼文へ混入しないようにするため)。
@@ -58,6 +67,10 @@ function glossaryPathFor(yakudocDir: string, langCode: string): string {
 /**
  * 翻訳待ちエントリから LLM 向けの下準備ファイル一式を生成する。
  *
+ * 対象は translations.json と依存パッケージの翻訳パックの全ファイル。
+ * 同じ原文が複数ファイルにあっても依頼は 1 件にまとまる(書き戻し時に
+ * 全ファイルへ反映される)。
+ *
  * - .yakudoc/ai/request.json  保護済み原文とプレースホルダー対応表
  * - .yakudoc/ai/prompt.md     そのまま LLM に貼れる依頼文(用語集込み)
  * - .yakudoc/glossary.json    用語集(無ければ空で作成。ユーザーが育てる)
@@ -65,17 +78,20 @@ function glossaryPathFor(yakudocDir: string, langCode: string): string {
 export function prepare(options: EngineRunOptions): PrepareSummary | undefined {
   // 翻訳待ちが 0 件でも言語コードは必ず検証する(不正な指定を黙って通さない)
   const lang = resolveLanguage(options.targetLang ?? DEFAULT_TARGET_LANG);
-  const translationsPath = resolveTranslationsPath(options);
-  const translations = readTranslations(translationsPath);
-  if (!translations) {
+  const targetPaths = resolveTargetPaths(options);
+  const sources = loadSourcesAt(targetPaths);
+  if (sources.length === 0) {
     throw new Error(
-      `${translationsPath} が見つかりません。先に \`yakudoc extract\` を実行してください。`
+      `翻訳対象のファイルが見つかりません(${targetPaths.join(", ")})。` +
+        "先に `yakudoc extract` または `yakudoc add` を実行してください。"
     );
   }
 
-  const yakudocDir = path.dirname(translationsPath);
+  // 下準備ファイルは translations.json と同じ .yakudoc/ ディレクトリに置く
+  const yakudocDir = path.dirname(resolveTranslationsPath(options));
   const glossaryPath = glossaryPathFor(yakudocDir, lang.code);
   if (!fs.existsSync(glossaryPath)) {
+    fs.mkdirSync(path.dirname(glossaryPath), { recursive: true });
     fs.writeFileSync(glossaryPath, "{}\n");
   }
   const glossary = JSON.parse(fs.readFileSync(glossaryPath, "utf8")) as Record<
@@ -83,20 +99,18 @@ export function prepare(options: EngineRunOptions): PrepareSummary | undefined {
     string
   >;
 
-  const pending = Object.entries(translations).filter(([, entry]) =>
-    needsTranslation(entry, lang.code)
-  );
+  const pending = collectPending(sources, lang.code);
   if (pending.length === 0) {
     return undefined;
   }
 
   const request: RequestFile = { targetLanguage: lang.code, entries: {} };
-  for (const [hash, entry] of pending) {
-    const protectedText = protectText(entry.original);
-    request.entries[hash] = {
+  for (const item of pending) {
+    const protectedText = protectText(item.original);
+    request.entries[item.hash] = {
       source: protectedText.text,
       placeholders: protectedText.placeholders,
-      ...(entry.symbol !== undefined ? { symbol: entry.symbol } : {}),
+      ...(item.symbol !== undefined ? { symbol: item.symbol } : {}),
     };
   }
 
