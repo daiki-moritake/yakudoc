@@ -4,6 +4,7 @@ import * as ts from "typescript";
 import { applyEdits, modify, parse } from "jsonc-parser";
 import { configPathFor, readConfig, resolveTargetLang, writeConfig } from "./config";
 import { extractProject, type ExtractSummary } from "./extract";
+import { resolveInstalledPackage } from "./installed";
 
 export const PLUGIN_NAME = "yakudoc-ts-plugin";
 
@@ -72,7 +73,7 @@ export function addPluginToTsconfig(
  * extends を解決した後の実効 compilerOptions.plugins を返す。
  * 解決できない場合(tsconfig が壊れている等)は undefined。
  */
-function effectivePluginsOf(configPath: string): PluginEntry[] | undefined {
+export function effectivePluginsOf(configPath: string): PluginEntry[] | undefined {
   const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
   if (configFile.error) {
     return undefined;
@@ -110,6 +111,12 @@ export interface InitSummary {
   configPath: string;
   /** 今回 config.json に翻訳先言語を保存したか */
   configWritten: boolean;
+  /**
+   * yakudoc-ts-plugin が projectDir から解決できるか。
+   * tsserver は解決できないプラグインを黙って無視するため、false のまま
+   * 使い始めると「登録したのに表示が変わらない」状態になる(CLI が警告する)。
+   */
+  pluginInstalled: boolean;
 }
 
 /**
@@ -167,5 +174,6 @@ export function initProject(options: InitOptions): InitSummary {
     targetLang,
     configPath: yakudocConfigPath,
     configWritten: options.targetLang !== undefined,
+    pluginInstalled: resolveInstalledPackage(projectDir, PLUGIN_NAME) !== undefined,
   };
 }

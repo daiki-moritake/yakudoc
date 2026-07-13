@@ -2,8 +2,9 @@
 import * as path from "node:path";
 import { parseArgs } from "node:util";
 import { configPathFor, resolveTargetLang } from "./config";
+import { doctorProject, type DoctorLevel } from "./doctor";
 import { extractProject, type ExtractSummary } from "./extract";
-import { initProject } from "./init";
+import { initProject, PLUGIN_NAME } from "./init";
 import { DEFAULT_TARGET_LANG } from "./languages";
 import { statusExitCode, statusProject, type PendingEntry } from "./status";
 import type { EngineRunOptions } from "./types";
@@ -16,6 +17,7 @@ const USAGE = `使い方: yakudoc <command> [options]
                翻訳待ちの原文を書き出す(既存の訳文は保持される)
   status       translations.json を書き換えずに翻訳の進捗を表示する
   translate    翻訳エンジンを実行する(--engine が必須)
+  doctor       導入状態を診断する(プラグイン登録・インストール・翻訳ファイル)
 
 オプション:
   -p, --project <path>   tsconfig.json のパス(既定: カレントから探索)
@@ -130,6 +132,14 @@ function runInit(values: {
       `翻訳先言語: ${summary.targetLang}(${configLabel} に保存しました)`
     );
   }
+  if (!summary.pluginInstalled) {
+    // tsserver は解決できないプラグインを黙って無視するため、
+    // このまま使い始めると「表示が変わらない」だけでエラーも出ない
+    console.log(`
+警告: ${PLUGIN_NAME} が node_modules に見つかりません。
+  tsconfig.json への登録は完了しましたが、インストールされるまで表示は変わりません:
+    npm install --save-dev ${PLUGIN_NAME}`);
+  }
 
   console.log(`
 次にやること:
@@ -209,6 +219,44 @@ function runStatus(values: {
   }
 }
 
+const DOCTOR_MARKS: Record<DoctorLevel, string> = {
+  ok: "✔",
+  warn: "⚠",
+  error: "✖",
+};
+
+function runDoctor(values: { project?: string; out?: string }): void {
+  const report = doctorProject({
+    projectDir: process.cwd(),
+    tsconfigPath: values.project,
+    outPath: values.out,
+  });
+
+  for (const check of report.checks) {
+    console.log(`${DOCTOR_MARKS[check.level]} ${check.label}: ${check.detail}`);
+    if (check.hint) {
+      for (const line of check.hint.split("\n")) {
+        console.log(`    ${line}`);
+      }
+    }
+  }
+
+  const errors = report.checks.filter((check) => check.level === "error").length;
+  const warns = report.checks.filter((check) => check.level === "warn").length;
+  console.log("");
+  if (errors > 0) {
+    console.log(`${errors} 件の問題が見つかりました。上の対処に従って解消してください。`);
+  } else if (warns > 0) {
+    console.log(`致命的な問題はありません(警告 ${warns} 件)。`);
+  } else {
+    console.log(
+      "すべての検査を通過しました。ホバーが変わらない場合は VSCode で" +
+        "「TypeScript: Restart TS Server」を実行してください。"
+    );
+  }
+  process.exitCode = report.exitCode;
+}
+
 async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
@@ -256,6 +304,11 @@ async function main(): Promise<void> {
 
   if (command === "translate") {
     await runTranslate(values);
+    return;
+  }
+
+  if (command === "doctor") {
+    runDoctor(values);
     return;
   }
 
