@@ -13,7 +13,7 @@ interface TsconfigLike {
  * コメントや既存のフォーマットは保持する。登録済みなら何もしない。
  * plugins が配列以外の値なら安全に編集できないためエラーにする。
  *
- * 注意: この実装は packages/yakudoc-core/src/init.ts の addPluginToTsconfig と
+ * 注意: この実装は packages/yakudoc/src/init.ts の addPluginToTsconfig と
  * 対で保守する(拡張側は typescript 非依存のため共有していない。extends 解決
  * 後の実効 plugins を考慮できるのは CLI の init 側のみ)。
  */

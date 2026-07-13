@@ -7,7 +7,7 @@ import {
   restoreText,
   writeTranslations,
   type EngineRunOptions,
-} from "yakudoc-core";
+} from "yakudoc";
 import { resolveTranslationsPath, type RequestFile } from "./prep";
 
 export interface ApplySummary {

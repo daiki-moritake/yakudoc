@@ -22,14 +22,14 @@ npm test        # 全ワークスペースのテストを実行
 特定のパッケージだけテストする場合:
 
 ```bash
-npm test -w yakudoc-core
+npm test -w yakudoc
 ```
 
 ## リポジトリ構成
 
 | ディレクトリ | 内容 |
 |---|---|
-| `packages/yakudoc-core` | JSDoc 抽出・翻訳ファイル管理・CLI(`init` / `extract` / `status` / `translate`) |
+| `packages/yakudoc` | JSDoc 抽出・翻訳ファイル管理・CLI(`init` / `extract` / `status` / `translate`) |
 | `packages/yakudoc-ts-plugin` | tsserver プラグイン本体(表示の差し替え) |
 | `packages/yakudoc-vscode` | VSCode 拡張 |
 | `packages/yakudoc-mt` | 内蔵モデルによるオフライン翻訳エンジン |

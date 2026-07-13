@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^3.2.0",
-    "yakudoc-core": "^0.1.0"
+    "yakudoc": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

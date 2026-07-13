@@ -2,7 +2,7 @@ import {
   resolveLanguage,
   resolveTranslationsPath,
   type EngineRunOptions,
-} from "yakudoc-core";
+} from "yakudoc";
 import { translatePending } from "./engine";
 import { resolveModel } from "./resolveModel";
 import { createLocalTranslator } from "./translator";

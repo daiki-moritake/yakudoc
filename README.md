@@ -42,7 +42,7 @@ VSCode の JS/TS 言語機能（ホバー表示・補完の説明・シグネチ
 
 | パッケージ | 役割 |
 | --- | --- |
-| `yakudoc-core` | AST から JSDoc を抽出し、翻訳ファイルを生成・管理する |
+| `yakudoc` | AST から JSDoc を抽出し、翻訳ファイルを生成・管理する |
 | `yakudoc-ts-plugin` | `tsserver` に登録するプラグイン本体。表示の差し替えを行う |
 | `yakudoc-vscode` | VSCode 拡張。`tsconfig.json` へのプラグイン自動登録、有効/無効の切り替え UI などを提供 |
 | `yakudoc-mt`（オプション） | オープンウェイトの翻訳モデルを内蔵し、コマンド一つで翻訳を完結させる |
@@ -55,7 +55,7 @@ VSCode の JS/TS 言語機能（ホバー表示・補完の説明・シグネチ
 ### 1. インストール
 
 ```bash
-npm install --save-dev yakudoc-core yakudoc-ts-plugin
+npm install --save-dev yakudoc yakudoc-ts-plugin
 ```
 
 ### 2. init を実行

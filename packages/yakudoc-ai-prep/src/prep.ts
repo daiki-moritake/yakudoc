@@ -9,7 +9,7 @@ import {
   resolveTranslationsPath as resolveDefaultTranslationsPath,
   type EngineRunOptions,
   type LanguageSpec,
-} from "yakudoc-core";
+} from "yakudoc";
 
 /** .yakudoc/ai/request.json の形式 */
 export interface RequestFile {

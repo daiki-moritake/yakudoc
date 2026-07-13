@@ -1,4 +1,4 @@
-import { DEFAULT_TARGET_LANG } from "yakudoc-core";
+import { DEFAULT_TARGET_LANG } from "yakudoc";
 import type { TranslateFn } from "./engine";
 import { postprocessFor } from "./postprocess";
 import { MODEL_TIERS, type ModelSpec } from "./resolveModel";

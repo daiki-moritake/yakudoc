@@ -42,7 +42,7 @@ This is a monorepo consisting of the following packages.
 
 | Package | Role |
 | --- | --- |
-| `yakudoc-core` | Extracts JSDoc from the AST and manages the translation file |
+| `yakudoc` | Extracts JSDoc from the AST and manages the translation file |
 | `yakudoc-ts-plugin` | The `tsserver` plugin that swaps the displayed documentation |
 | `yakudoc-vscode` | VSCode extension: auto-registers the plugin in `tsconfig.json`, toggle UI, etc. |
 | `yakudoc-mt` (optional) | Bundles an open-weight translation model for fully offline translation |
@@ -55,7 +55,7 @@ You only need one of `yakudoc-mt` / `yakudoc-ai-prep` — there is no need to in
 ### 1. Install
 
 ```bash
-npm install --save-dev yakudoc-core yakudoc-ts-plugin
+npm install --save-dev yakudoc yakudoc-ts-plugin
 ```
 
 ### 2. Run init

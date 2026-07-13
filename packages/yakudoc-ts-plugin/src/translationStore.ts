@@ -6,7 +6,7 @@ import {
   TRANSLATIONS_RELATIVE_PATH,
   type TranslationEntry,
   type TranslationsFile,
-} from "yakudoc-core";
+} from "yakudoc";
 
 export type { TranslationEntry, TranslationsFile };
 
