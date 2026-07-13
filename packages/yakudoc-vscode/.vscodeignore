@@ -1,0 +1,10 @@
+# dist/extension.js は esbuild で単一ファイルにバンドルされるため、
+# ソース・テスト・依存はパッケージに含めない
+.vscode/**
+src/**
+test/**
+tests/**
+node_modules/**
+tsconfig.json
+icon.svg
+**/*.map

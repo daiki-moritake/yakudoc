@@ -6,7 +6,7 @@ import {
   readTranslations,
   restoreText,
   writeTranslations,
-} from "yakudoc-core";
+} from "yakudoc";
 
 /** 保護済みテキストの配列を受け取り、同じ順序で訳文を返す */
 export type TranslateFn = (texts: string[]) => Promise<string[]>;

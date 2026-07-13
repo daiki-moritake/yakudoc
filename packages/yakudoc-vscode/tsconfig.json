@@ -1,7 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
+    // 出力は esbuild が dist/extension.js に単一バンドルする。tsc は型検査のみ
+    "noEmit": true,
     "rootDir": "src",
     "types": ["node", "vscode"]
   },

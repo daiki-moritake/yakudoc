@@ -22,11 +22,20 @@ export {
 } from "./extract";
 export {
   addPluginToTsconfig,
+  effectivePluginsOf,
   initProject,
   PLUGIN_NAME,
   type InitOptions,
   type InitSummary,
 } from "./init";
+export {
+  doctorProject,
+  type DoctorCheck,
+  type DoctorLevel,
+  type DoctorOptions,
+  type DoctorReport,
+} from "./doctor";
+export { resolveInstalledPackage } from "./installed";
 export {
   mergeTranslations,
   needsTranslation,

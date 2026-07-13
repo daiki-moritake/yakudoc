@@ -1,4 +1,4 @@
-import type { EngineRunOptions } from "yakudoc-core";
+import type { EngineRunOptions } from "yakudoc";
 import { applyResponse } from "./apply";
 import { prepare } from "./prep";
 

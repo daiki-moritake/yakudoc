@@ -27,6 +27,7 @@
 
 ## うまく表示されないとき
 
+- このディレクトリで `npx yakudoc doctor` を実行し、導入状態を診断する
 - コマンドパレット → `TypeScript: Restart TS Server` を実行する
 - コマンドパレット → `TypeScript: Open TS Server log` で `[yakudoc]` のログ行を確認する
   (`activated (project: ..., ... entries)` が出ていれば読み込みは成功しています)

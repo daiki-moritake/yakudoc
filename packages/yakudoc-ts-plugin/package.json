@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "tsserver Language Service Plugin that swaps JSDoc documentation shown in the editor (hover / completion / signature help) with translations in your language",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.17"
+  },
   "keywords": [
     "tsserver",
     "language-service-plugin",
@@ -30,7 +33,7 @@
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "yakudoc-core": "^0.1.0"
+    "yakudoc": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

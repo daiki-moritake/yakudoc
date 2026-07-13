@@ -3,7 +3,7 @@ import {
   DEFAULT_TARGET_LANG,
   resolveLanguage,
   type LanguageSpec,
-} from "yakudoc-core";
+} from "yakudoc";
 
 export interface ModelSpec {
   /** Hugging Face のモデル id */

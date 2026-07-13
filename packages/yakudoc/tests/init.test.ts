@@ -170,6 +170,24 @@ describe("initProject", () => {
     assert.equal(merged[hash].translated, "指定された名前に挨拶する。");
   });
 
+  it("yakudoc-ts-plugin が node_modules に無ければ pluginInstalled は false", () => {
+    const dir = makeProject(`{\n  "compilerOptions": {\n    "strict": true\n  }\n}\n`);
+    assert.equal(initProject({ projectDir: dir }).pluginInstalled, false);
+  });
+
+  it("yakudoc-ts-plugin が解決できれば pluginInstalled は true", () => {
+    const dir = makeProject(`{\n  "compilerOptions": {\n    "strict": true\n  }\n}\n`);
+    const pkgDir = path.join(dir, "node_modules", "yakudoc-ts-plugin");
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(pkgDir, "package.json"),
+      JSON.stringify({ name: "yakudoc-ts-plugin", version: "0.0.0", main: "index.js" })
+    );
+    fs.writeFileSync(path.join(pkgDir, "index.js"), "module.exports = {};\n");
+
+    assert.equal(initProject({ projectDir: dir }).pluginInstalled, true);
+  });
+
   it("tsconfig.json が無ければエラーになる", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-init-"));
     tempDirs.push(dir);

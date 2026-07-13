@@ -29,7 +29,7 @@ export function normalizeJapaneseOutput(text: string): string {
  * 句読点の全角化は日本語専用(中国語も CJK 文字を使うが ASCII カンマの
  * 変換先が異なる)。日本語以外はトリムのみ行う。
  * 他言語の後処理を足す場合は、分岐を増やすのではなく LanguageSpec
- * (yakudoc-core/src/languages.ts)にデータとして持たせること。
+ * (yakudoc/src/languages.ts)にデータとして持たせること。
  */
 export function postprocessFor(targetLang: string): (text: string) => string {
   // resolveLanguage を通っていない呼び出しでも動くよう表記ゆれを正規化する

@@ -47,12 +47,12 @@ jobs:
       - name: Test
         run: npm test
 
-      # yakudoc-core を先頭に、依存される側から順に publish する。
+      # yakudoc を先頭に、依存される側から順に publish する。
       # 公開済みのバージョンはスキップするため、途中で失敗しても
       # 同じタグでワークフローを再実行すれば続きから公開できる。
       - name: Publish to npm
         run: |
-          for pkg in yakudoc-core yakudoc-ts-plugin yakudoc-ai-prep yakudoc-mt; do
+          for pkg in yakudoc yakudoc-ts-plugin yakudoc-ai-prep yakudoc-mt; do
             version="$(node -p "require('./packages/${pkg}/package.json').version")"
             if npm view "${pkg}@${version}" version >/dev/null 2>&1; then
               echo "${pkg}@${version} は公開済みのためスキップします"

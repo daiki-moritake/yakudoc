@@ -1,8 +1,11 @@
 {
-  "name": "yakudoc-core",
+  "name": "yakudoc",
   "version": "0.1.0",
-  "description": "Extracts JSDoc comments into a translation file (.yakudoc/translations.json) and manages incremental re-extraction",
+  "description": "Show JSDoc comments translated into your language in the editor — CLI and core library (init / extract / status / translate)",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.17"
+  },
   "keywords": [
     "jsdoc",
     "tsdoc",
@@ -16,7 +19,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/daiki-moritake/yakudoc.git",
-    "directory": "packages/yakudoc-core"
+    "directory": "packages/yakudoc"
   },
   "homepage": "https://github.com/daiki-moritake/yakudoc#readme",
   "bugs": {
