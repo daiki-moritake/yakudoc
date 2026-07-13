@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Generates placeholder-protected source files and a glossary so any LLM can translate yakudoc entries, then writes the results back",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.17"
+  },
   "keywords": [
     "llm",
     "prompt",

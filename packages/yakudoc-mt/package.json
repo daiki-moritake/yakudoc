@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Translates yakudoc entries offline with an open-weight machine translation model (transformers.js)",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.17"
+  },
   "keywords": [
     "machine-translation",
     "transformers.js",

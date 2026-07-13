@@ -1,10 +1,14 @@
 #!/usr/bin/env node
+import * as fs from "node:fs";
+import { createRequire } from "node:module";
 import * as path from "node:path";
 import { parseArgs } from "node:util";
 import { configPathFor, resolveTargetLang } from "./config";
 import { doctorProject, type DoctorLevel } from "./doctor";
+import { selectEngine } from "./engineSelect";
 import { extractProject, type ExtractSummary } from "./extract";
 import { initProject, PLUGIN_NAME } from "./init";
+import { resolveInstalledPackage } from "./installed";
 import { DEFAULT_TARGET_LANG } from "./languages";
 import { statusExitCode, statusProject, type PendingEntry } from "./status";
 import type { EngineRunOptions } from "./types";
@@ -16,7 +20,7 @@ const USAGE = `使い方: yakudoc <command> [options]
   extract      プロジェクトの JSDoc を走査し、.yakudoc/translations.json に
                翻訳待ちの原文を書き出す(既存の訳文は保持される)
   status       translations.json を書き換えずに翻訳の進捗を表示する
-  translate    翻訳エンジンを実行する(--engine が必須)
+  translate    翻訳エンジンを実行する
   doctor       導入状態を診断する(プラグイン登録・インストール・翻訳ファイル)
 
 オプション:
@@ -28,21 +32,36 @@ const USAGE = `使い方: yakudoc <command> [options]
       --lang <code>      [init/translate] 翻訳先の言語コード(既定: ja)。
                          init で指定すると .yakudoc/config.json に保存され、
                          以後の translate はそれを使う
-      --engine <name>    [translate] prep(AI 用下準備)/ local(内蔵モデル)
+      --engine <name>    [translate] prep(AI 用下準備)/ local(内蔵モデル)。
+                         省略時はインストール済みのエンジンを自動選択する
+                         (1 つだけの場合)
       --apply <path>     [translate] 翻訳結果 JSON を translations.json に書き戻す
       --model-size <s>   [translate --engine local] small | large | auto
                          (既定: auto。搭載メモリからモデルを自動選択)
       --model <hf-id>    [translate --engine local] 使用モデルを明示指定
+  -v, --version          バージョンを表示する
   -h, --help             このヘルプを表示する
 `;
 
-const ENGINE_PACKAGES: Record<string, string> = {
-  prep: "yakudoc-ai-prep",
-  local: "yakudoc-mt",
-};
-
 interface TranslateEngineModule {
   run(options: EngineRunOptions): Promise<void> | void;
+}
+
+/**
+ * エンジンのパッケージを読み込む。npx 実行などで CLI がプロジェクトの
+ * node_modules 外に居ても、プロジェクトに入れたエンジンを見つけられるよう
+ * カレントディレクトリからの解決を優先し、CLI 自身の依存(モノレポ開発時
+ * など)にフォールバックする。
+ */
+function loadEngine(packageName: string): TranslateEngineModule {
+  const projectRequire = createRequire(
+    path.join(process.cwd(), "__yakudoc__.js")
+  );
+  try {
+    return projectRequire(packageName) as TranslateEngineModule;
+  } catch {
+    return require(packageName) as TranslateEngineModule;
+  }
 }
 
 async function runTranslate(values: {
@@ -53,16 +72,11 @@ async function runTranslate(values: {
   "model-size"?: string;
   lang?: string;
 }): Promise<void> {
-  if (!values.engine) {
-    throw new Error(
-      "--engine を指定してください(prep または local)。"
-    );
-  }
-  const packageName = ENGINE_PACKAGES[values.engine];
-  if (!packageName) {
-    throw new Error(
-      `不明なエンジンです: ${values.engine}(prep または local が使えます)`
-    );
+  const selection = selectEngine(values.engine, values.apply, (packageName) =>
+    resolveInstalledPackage(process.cwd(), packageName) !== undefined
+  );
+  if (selection.note) {
+    console.log(selection.note);
   }
 
   // エンジンの読み込み前に言語コードを検証する(--lang > config.json > ja)
@@ -73,11 +87,11 @@ async function runTranslate(values: {
 
   let engine: TranslateEngineModule;
   try {
-    engine = (await import(packageName)) as TranslateEngineModule;
+    engine = loadEngine(selection.packageName);
   } catch {
     throw new Error(
-      `${packageName} がインストールされていません。` +
-        `\n  npm install --save-dev ${packageName}`
+      `${selection.packageName} がインストールされていません。` +
+        `\n  npm install --save-dev ${selection.packageName}`
     );
   }
 
@@ -219,6 +233,21 @@ function runStatus(values: {
   }
 }
 
+const CLI_OPTIONS = {
+  project: { type: "string", short: "p" },
+  out: { type: "string" },
+  prune: { type: "boolean", default: false },
+  json: { type: "boolean", default: false },
+  "fail-on-pending": { type: "boolean", default: false },
+  engine: { type: "string" },
+  apply: { type: "string" },
+  model: { type: "string" },
+  "model-size": { type: "string" },
+  lang: { type: "string" },
+  version: { type: "boolean", short: "v", default: false },
+  help: { type: "boolean", short: "h", default: false },
+} as const;
+
 const DOCTOR_MARKS: Record<DoctorLevel, string> = {
   ok: "✔",
   warn: "⚠",
@@ -257,23 +286,39 @@ function runDoctor(values: { project?: string; out?: string }): void {
   process.exitCode = report.exitCode;
 }
 
+/** 自身の package.json からバージョンを読む(dist/cli.js からの相対) */
+function cliVersion(): string {
+  try {
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8")
+    ) as { version?: string };
+    return pkg.version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+function parseCliArgs() {
+  return parseArgs({ allowPositionals: true, options: CLI_OPTIONS });
+}
+
 async function main(): Promise<void> {
-  const { values, positionals } = parseArgs({
-    allowPositionals: true,
-    options: {
-      project: { type: "string", short: "p" },
-      out: { type: "string" },
-      prune: { type: "boolean", default: false },
-      json: { type: "boolean", default: false },
-      "fail-on-pending": { type: "boolean", default: false },
-      engine: { type: "string" },
-      apply: { type: "string" },
-      model: { type: "string" },
-      "model-size": { type: "string" },
-      lang: { type: "string" },
-      help: { type: "boolean", short: "h", default: false },
-    },
-  });
+  let parsed: ReturnType<typeof parseCliArgs>;
+  try {
+    parsed = parseCliArgs();
+  } catch (error) {
+    // 未知のオプションなど。Node の例外をそのまま投げず、使い方を添える
+    process.stderr.write(
+      `yakudoc: ${error instanceof Error ? error.message : String(error)}\n\n${USAGE}`
+    );
+    process.exit(1);
+  }
+  const { values, positionals } = parsed;
+
+  if (values.version) {
+    console.log(cliVersion());
+    return;
+  }
 
   const command = positionals[0];
   if (values.help || command === undefined) {
