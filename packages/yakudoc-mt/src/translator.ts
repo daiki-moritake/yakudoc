@@ -1,4 +1,5 @@
 import { DEFAULT_TARGET_LANG } from "yakudoc";
+import { createProgressRenderer } from "./downloadProgress";
 import type { TranslateFn } from "./engine";
 import { postprocessFor } from "./postprocess";
 import { MODEL_TIERS, type ModelSpec } from "./resolveModel";
@@ -23,7 +24,8 @@ const dynamicImport = new Function(
  */
 export async function createLocalTranslator(
   spec: ModelSpec = MODEL_TIERS.small,
-  targetLang: string = DEFAULT_TARGET_LANG
+  targetLang: string = DEFAULT_TARGET_LANG,
+  onProgress?: (message: string) => void
 ): Promise<TranslateFn> {
   const postprocess = postprocessFor(targetLang);
   const { pipeline } = await dynamicImport("@huggingface/transformers");
@@ -31,6 +33,9 @@ export async function createLocalTranslator(
   // CPU 実行前提のツールなので 8bit 量子化版を使う。
   const translator = (await pipeline("translation", spec.model, {
     dtype: "q8",
+    ...(onProgress
+      ? { progress_callback: createProgressRenderer(onProgress) }
+      : {}),
   })) as unknown as (
     texts: string[],
     options?: Record<string, unknown>
