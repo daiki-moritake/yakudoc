@@ -1,17 +1,42 @@
 {
   "name": "yakudoc-vscode",
   "displayName": "yakudoc",
-  "description": "JSDoc のホバー・補完・シグネチャヘルプを日本語訳で表示する yakudoc-ts-plugin の管理 UI",
+  "description": "%yakudoc.description%",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
   "publisher": "yakudoc",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/daiki-moritake/yakudoc.git",
+    "directory": "packages/yakudoc-vscode"
+  },
+  "homepage": "https://github.com/daiki-moritake/yakudoc#readme",
+  "bugs": {
+    "url": "https://github.com/daiki-moritake/yakudoc/issues"
+  },
+  "keywords": [
+    "jsdoc",
+    "translation",
+    "japanese",
+    "日本語",
+    "翻訳",
+    "typescript",
+    "hover",
+    "documentation"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
+    "Programming Languages",
     "Other"
   ],
+  "galleryBanner": {
+    "color": "#1e2a45",
+    "theme": "dark"
+  },
   "main": "./dist/extension.js",
   "activationEvents": [
     "onLanguage:typescript",
@@ -23,23 +48,28 @@
     "commands": [
       {
         "command": "yakudoc.init",
-        "title": "yakudoc: 導入を実行 (init)"
+        "category": "yakudoc",
+        "title": "%yakudoc.command.init.title%"
       },
       {
         "command": "yakudoc.toggle",
-        "title": "yakudoc: 翻訳表示を切り替え (JP/EN)"
+        "category": "yakudoc",
+        "title": "%yakudoc.command.toggle.title%"
       },
       {
         "command": "yakudoc.registerPlugin",
-        "title": "yakudoc: tsconfig.json にプラグインを登録"
+        "category": "yakudoc",
+        "title": "%yakudoc.command.registerPlugin.title%"
       },
       {
         "command": "yakudoc.extract",
-        "title": "yakudoc: 翻訳対象を抽出 (extract)"
+        "category": "yakudoc",
+        "title": "%yakudoc.command.extract.title%"
       },
       {
         "command": "yakudoc.showStatus",
-        "title": "yakudoc: 翻訳の進捗を表示 (status)"
+        "category": "yakudoc",
+        "title": "%yakudoc.command.showStatus.title%"
       }
     ],
     "configuration": {
@@ -48,21 +78,21 @@
         "yakudoc.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "JSDoc の表示(ホバー・補完・シグネチャヘルプ)を日本語訳に差し替える"
+          "description": "%yakudoc.config.enabled.description%"
         }
       }
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "node --experimental-test-module-mocks --import tsx --test tests/*.test.ts"
-  },
-  "dependencies": {
-    "jsonc-parser": "^3.3.1"
+    "build": "tsc -p tsconfig.json && esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --format=cjs --target=node18",
+    "test": "node --experimental-test-module-mocks --import tsx --test tests/*.test.ts",
+    "package": "npx @vscode/vsce package --no-dependencies"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0",
+    "jsonc-parser": "^3.3.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vscode": "file:test/vscode-stub"

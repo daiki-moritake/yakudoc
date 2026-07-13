@@ -1,0 +1,9 @@
+{
+  "yakudoc.description": "JSDoc のホバー・補完・シグネチャヘルプを日本語訳(または任意の言語)で表示します。コードには一切手を加えません。",
+  "yakudoc.command.init.title": "導入を実行 (init)",
+  "yakudoc.command.toggle.title": "翻訳表示を切り替え(原文 / 翻訳)",
+  "yakudoc.command.registerPlugin.title": "tsconfig.json にプラグインを登録",
+  "yakudoc.command.extract.title": "翻訳対象を抽出 (extract)",
+  "yakudoc.command.showStatus.title": "翻訳の進捗を表示 (status)",
+  "yakudoc.config.enabled.description": "JSDoc の表示(ホバー・補完・シグネチャヘルプ)を翻訳に差し替える"
+}

@@ -1,0 +1,9 @@
+{
+  "yakudoc.description": "Show JSDoc hover, completion and signature help translated into your language (Japanese by default) — without touching the source code.",
+  "yakudoc.command.init.title": "Run setup (init)",
+  "yakudoc.command.toggle.title": "Toggle translated docs (original / translated)",
+  "yakudoc.command.registerPlugin.title": "Register plugin in tsconfig.json",
+  "yakudoc.command.extract.title": "Extract JSDoc to translate (extract)",
+  "yakudoc.command.showStatus.title": "Show translation progress (status)",
+  "yakudoc.config.enabled.description": "Replace JSDoc shown in hover / completion / signature help with translations"
+}
