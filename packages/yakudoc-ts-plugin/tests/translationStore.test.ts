@@ -121,3 +121,83 @@ describe("TranslationStore", () => {
     assert.equal(store.translate(original), translated);
   });
 });
+
+describe("TranslationStore(翻訳パック)", () => {
+  const packOriginal = "Validates the schema.";
+  const packTranslated = "スキーマを検証します。";
+
+  function writePackFile(
+    root: string,
+    name: string,
+    entries: TranslationsFile
+  ): string {
+    const filePath = path.join(root, ".yakudoc", "packs", `${name}.json`);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify(
+        { name, version: "1.0.0", lang: "ja", entries },
+        null,
+        2
+      )
+    );
+    return filePath;
+  }
+
+  it("translations.json が無くてもパックだけで訳文を引ける", () => {
+    const root = makeProjectDir();
+    writePackFile(root, "zod", {
+      [hashText(packOriginal)]: {
+        original: packOriginal,
+        translated: packTranslated,
+      },
+    });
+    assert.equal(makeStore(root).translate(packOriginal), packTranslated);
+  });
+
+  it("同じ原文はプロジェクトの訳がパックより優先される", () => {
+    const root = makeProjectDir();
+    const original = "Shared doc.";
+    writeTranslations(root, {
+      [hashText(original)]: { original, translated: "プロジェクトの訳。" },
+    });
+    writePackFile(root, "zod", {
+      [hashText(original)]: { original, translated: "パックの訳。" },
+    });
+    assert.equal(makeStore(root).translate(original), "プロジェクトの訳。");
+  });
+
+  it("後から追加されたパックを自動で拾う", async () => {
+    const root = makeProjectDir();
+    writeTranslations(root, {
+      [hashText("Other doc.")]: { original: "Other doc.", translated: "他。" },
+    });
+    const store = makeStore(root);
+    assert.equal(store.translate(packOriginal), undefined);
+
+    writePackFile(root, "zod", {
+      [hashText(packOriginal)]: {
+        original: packOriginal,
+        translated: packTranslated,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(store.translate(packOriginal), packTranslated);
+  });
+
+  it("素の translations.json 形式のファイルを packs/ に置いても読める", () => {
+    const root = makeProjectDir();
+    const filePath = path.join(root, ".yakudoc", "packs", "manual.json");
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({
+        [hashText(packOriginal)]: {
+          original: packOriginal,
+          translated: packTranslated,
+        },
+      })
+    );
+    assert.equal(makeStore(root).translate(packOriginal), packTranslated);
+  });
+});

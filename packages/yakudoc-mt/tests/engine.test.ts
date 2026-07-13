@@ -3,7 +3,14 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { after, describe, it } from "node:test";
-import { hashText, readTranslations, writeTranslations } from "yakudoc";
+import {
+  hashText,
+  packPathFor,
+  readPack,
+  readTranslations,
+  writePack,
+  writeTranslations,
+} from "yakudoc";
 import { translatePending, type TranslateFn } from "../src/engine";
 
 const tempDirs: string[] = [];
@@ -155,5 +162,67 @@ describe("translatePending", () => {
     });
     assert.equal(summary.pending, 0);
     assert.equal(called, false);
+  });
+});
+
+describe("translatePending(翻訳パック横断)", () => {
+  const SHARED = "Shared doc text.";
+  const PACK_ONLY = "Validates the schema.";
+
+  it("複数ファイルを横断し、共通の原文は 1 回だけ翻訳して全ファイルへ書き戻す", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-mt-test-"));
+    tempDirs.push(dir);
+    const translationsPath = path.join(dir, ".yakudoc", "translations.json");
+    writeTranslations(translationsPath, {
+      [hashText(SHARED)]: { original: SHARED, translated: "" },
+    });
+    const packPath = packPathFor(dir, "zod");
+    writePack(packPath, {
+      name: "zod",
+      version: "3.0.0",
+      lang: "ja",
+      entries: {
+        [hashText(SHARED)]: { original: SHARED, translated: "" },
+        [hashText(PACK_ONLY)]: { original: PACK_ONLY, translated: "" },
+      },
+    });
+
+    const seen: string[] = [];
+    const counting: TranslateFn = async (texts) => {
+      seen.push(...texts);
+      return texts.map((text) =>
+        text
+          .replace(SHARED, "共有の説明。")
+          .replace(PACK_ONLY, "スキーマを検証します。")
+      );
+    };
+
+    const summary = await translatePending(
+      [translationsPath, packPath],
+      counting
+    );
+    assert.equal(summary.pending, 2); // 重複排除後
+    assert.equal(summary.applied, 2);
+    assert.equal(seen.length, 2); // SHARED はモデルに 1 回しか渡さない
+
+    const translations = readTranslations(translationsPath)!;
+    assert.equal(translations[hashText(SHARED)].translated, "共有の説明。");
+
+    const pack = readPack(packPath)!;
+    assert.equal(pack.entries[hashText(SHARED)].translated, "共有の説明。");
+    assert.equal(
+      pack.entries[hashText(PACK_ONLY)].translated,
+      "スキーマを検証します。"
+    );
+    assert.equal(pack.version, "3.0.0"); // メタデータ保持
+  });
+
+  it("対象ファイルが 1 つも無ければ導入手順つきのエラー", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-mt-test-"));
+    tempDirs.push(dir);
+    await assert.rejects(
+      translatePending([path.join(dir, "nope.json")], fakeTranslate),
+      /yakudoc extract(.|\n)*yakudoc add|yakudoc add/
+    );
   });
 });

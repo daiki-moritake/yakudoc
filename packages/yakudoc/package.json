@@ -1,7 +1,7 @@
 {
   "name": "yakudoc",
   "version": "0.1.0",
-  "description": "Show JSDoc comments translated into your language in the editor — CLI and core library (init / extract / status / translate)",
+  "description": "Read your dependencies' JSDoc in your language, right in the editor — CLI and core library (add / init / extract / status / translate / export / doctor)",
   "license": "MIT",
   "engines": {
     "node": ">=18.17"
@@ -14,6 +14,8 @@
     "i18n",
     "typescript",
     "documentation",
+    "node_modules",
+    "translation-pack",
     "cli"
   ],
   "repository": {

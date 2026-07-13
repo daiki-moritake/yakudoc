@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { after, describe, it } from "node:test";
 import { doctorProject, type DoctorCheck, type DoctorReport } from "../src/doctor";
+import { packPathFor, writePack } from "../src/packs";
 
 const tempDirs: string[] = [];
 
@@ -150,5 +151,53 @@ describe("doctorProject", () => {
     doctorProject({ projectDir: dir });
 
     assert.deepEqual(fs.readdirSync(dir).sort(), ["tsconfig.json"]);
+  });
+});
+
+describe("doctorProject(翻訳パック)", () => {
+  it("パックがあれば進捗つきで一覧する", () => {
+    const dir = makeDir();
+    fs.writeFileSync(path.join(dir, "tsconfig.json"), REGISTERED_TSCONFIG);
+    installFakePackage(dir, "yakudoc-ts-plugin");
+    writeTranslationsFile(dir);
+    writePack(packPathFor(dir, "zod"), {
+      name: "zod",
+      version: "3.0.0",
+      lang: "ja",
+      entries: {
+        z1: { original: "Parses.", translated: "解析。", lang: "ja" },
+        z2: { original: "Validates.", translated: "" },
+      },
+    });
+
+    const check = checkOf(doctorProject({ projectDir: dir }), "翻訳パック");
+    assert.equal(check.level, "ok");
+    assert.match(check.detail, /zod@3\.0\.0 1\/2/);
+  });
+
+  it("パックが無ければ add の案内を出す(ok 扱い)", () => {
+    const dir = makeDir();
+    fs.writeFileSync(path.join(dir, "tsconfig.json"), REGISTERED_TSCONFIG);
+    writeTranslationsFile(dir);
+
+    const check = checkOf(doctorProject({ projectDir: dir }), "翻訳パック");
+    assert.equal(check.level, "ok");
+    assert.match(check.detail, /yakudoc add/);
+  });
+
+  it("パックだけの運用では translations.json 無しを警告にしない", () => {
+    const dir = makeDir();
+    fs.writeFileSync(path.join(dir, "tsconfig.json"), REGISTERED_TSCONFIG);
+    installFakePackage(dir, "yakudoc-ts-plugin");
+    writePack(packPathFor(dir, "zod"), {
+      name: "zod",
+      version: "3.0.0",
+      lang: "ja",
+      entries: { z1: { original: "Parses.", translated: "" } },
+    });
+
+    const check = checkOf(doctorProject({ projectDir: dir }), "translations.json");
+    assert.equal(check.level, "ok");
+    assert.match(check.detail, /依存パッケージの翻訳のみ使用中/);
   });
 });

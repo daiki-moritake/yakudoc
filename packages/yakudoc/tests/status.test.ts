@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { after, describe, it } from "node:test";
 import { writeConfig } from "../src/config";
+import { packPathFor, writePack } from "../src/packs";
 import { computeStatus, statusExitCode, statusProject } from "../src/status";
 import { writeTranslations } from "../src/translationsFile";
 import type { TranslationsFile } from "../src/types";
@@ -132,5 +133,69 @@ describe("statusProject", () => {
     assert.equal(summary.targetLang, "de");
     assert.equal(summary.untranslated, 1);
     assert.equal(summary.translated, 0);
+  });
+});
+
+describe("statusProject(翻訳パック)", () => {
+  it("translations.json とパックを合算し、内訳を返す", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-status-"));
+    tempDirs.push(dir);
+    writeTranslations(path.join(dir, ".yakudoc", "translations.json"), {
+      p1: { original: "Project doc.", translated: "訳。", symbol: "src/a.ts#a" },
+      p2: { original: "Pending doc.", translated: "", symbol: "src/b.ts#b" },
+    });
+    writePack(packPathFor(dir, "zod"), {
+      name: "zod",
+      version: "3.0.0",
+      lang: "ja",
+      entries: {
+        z1: { original: "Parses.", translated: "解析。", lang: "ja" },
+        z2: { original: "Validates.", translated: "" },
+      },
+    });
+
+    const summary = statusProject({ projectDir: dir })!;
+    assert.equal(summary.total, 4);
+    assert.equal(summary.translated, 2);
+    assert.equal(summary.untranslated, 2);
+    assert.equal(summary.project?.total, 2);
+    assert.deepEqual(
+      summary.packs.map((pack) => [pack.name, pack.version, pack.translated]),
+      [["zod", "3.0.0", 1]]
+    );
+  });
+
+  it("同じ原文が複数ファイルにあっても翻訳待ちは 1 件に数える", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-status-"));
+    tempDirs.push(dir);
+    writeTranslations(path.join(dir, ".yakudoc", "translations.json"), {
+      shared: { original: "Shared doc.", translated: "" },
+    });
+    writePack(packPathFor(dir, "zod"), {
+      name: "zod",
+      version: "3.0.0",
+      lang: "ja",
+      entries: { shared: { original: "Shared doc.", translated: "" } },
+    });
+
+    const summary = statusProject({ projectDir: dir })!;
+    assert.equal(summary.total, 1);
+    assert.equal(summary.untranslated, 1);
+  });
+
+  it("translations.json が無くパックだけでも集計できる", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yakudoc-status-"));
+    tempDirs.push(dir);
+    writePack(packPathFor(dir, "zod"), {
+      name: "zod",
+      version: "3.0.0",
+      lang: "ja",
+      entries: { z1: { original: "Parses.", translated: "" } },
+    });
+
+    const summary = statusProject({ projectDir: dir })!;
+    assert.equal(summary.project, undefined);
+    assert.equal(summary.total, 1);
+    assert.equal(summary.packs.length, 1);
   });
 });

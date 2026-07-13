@@ -4,6 +4,7 @@ import { configPathFor, readConfig, resolveTargetLang } from "./config";
 import { effectivePluginsOf, PLUGIN_NAME } from "./init";
 import { resolveInstalledPackage } from "./installed";
 import { DEFAULT_TARGET_LANG } from "./languages";
+import { listPacks, resolvePacksDir } from "./packs";
 import { computeStatus } from "./status";
 import { readTranslations, resolveTranslationsPath } from "./translationsFile";
 
@@ -130,23 +131,55 @@ export function doctorProject(options: DoctorOptions): DoctorReport {
     };
   }
 
-  // 3. translations.json の存在と進捗
+  // 3. translations.json とパックの存在・進捗
+  const packs = listPacks(resolvePacksDir(projectDir, options.outPath));
   const outPath = resolveTranslationsPath(projectDir, options.outPath);
   const outLabel = path.relative(projectDir, outPath) || outPath;
   const translations = readTranslations(outPath);
   if (!translations) {
-    checks.push({
-      label: "translations.json",
-      level: "warn",
-      detail: `${outLabel} がありません`,
-      hint: "`npx yakudoc init`(または `npx yakudoc extract`)で生成できます。",
-    });
+    checks.push(
+      packs.length > 0
+        ? {
+            // 依存パッケージの翻訳だけを使う運用は正当なので警告にしない
+            label: "translations.json",
+            level: "ok",
+            detail: `${outLabel} なし(依存パッケージの翻訳のみ使用中)`,
+          }
+        : {
+            label: "translations.json",
+            level: "warn",
+            detail: `${outLabel} がありません`,
+            hint: "`npx yakudoc init`(または `npx yakudoc extract`)で生成できます。",
+          }
+    );
   } else {
     const counts = computeStatus(translations, targetLang ?? DEFAULT_TARGET_LANG);
     checks.push({
       label: "translations.json",
       level: "ok",
       detail: `${outLabel}(全 ${counts.total} 件 / 翻訳済み ${counts.translated} / 翻訳待ち ${counts.untranslated})`,
+    });
+  }
+
+  // 3.5 依存パッケージの翻訳パック
+  if (packs.length > 0) {
+    const lang = targetLang ?? DEFAULT_TARGET_LANG;
+    const parts = packs.map((loaded) => {
+      const counts = computeStatus(loaded.pack.entries, lang);
+      const version = loaded.pack.version ? `@${loaded.pack.version}` : "";
+      return `${loaded.pack.name}${version} ${counts.translated}/${counts.total}`;
+    });
+    checks.push({
+      label: "翻訳パック",
+      level: "ok",
+      detail: `${packs.length} パッケージ(${parts.join(", ")})`,
+    });
+  } else {
+    checks.push({
+      label: "翻訳パック",
+      level: "ok",
+      detail:
+        "なし(`npx yakudoc add <パッケージ名>` で依存ライブラリの翻訳を追加できます)",
     });
   }
 

@@ -6,6 +6,8 @@ import { DEFAULT_TARGET_LANG, resolveLanguage } from "./languages";
 export interface YakudocConfig {
   /** 翻訳先の言語コード(省略時: ja) */
   targetLang?: string;
+  /** コミュニティ翻訳パックの取得元 URL(省略時: 既定のレジストリ) */
+  registry?: string;
 }
 
 /**
@@ -54,8 +56,11 @@ export function readConfig(configPath: string): YakudocConfig {
     );
   }
 
-  const targetLang = (parsed as YakudocConfig).targetLang;
-  return typeof targetLang === "string" ? { targetLang } : {};
+  const { targetLang, registry } = parsed as YakudocConfig;
+  return {
+    ...(typeof targetLang === "string" ? { targetLang } : {}),
+    ...(typeof registry === "string" ? { registry } : {}),
+  };
 }
 
 /** config.json を書き出す(ディレクトリが無ければ作る) */

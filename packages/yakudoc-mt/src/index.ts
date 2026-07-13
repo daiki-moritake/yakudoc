@@ -37,10 +37,11 @@ export async function run(options: EngineRunOptions): Promise<void> {
     );
   }
 
-  const translationsPath = resolveTranslationsPath(
-    options.projectDir,
-    options.translationsPath
-  );
+  // CLI が対象一覧(translations.json + 翻訳パック)を渡してくる。
+  // 旧来の単一ファイル指定のみでも動く(後方互換)
+  const translationsPaths = options.translationsPaths ?? [
+    resolveTranslationsPath(options.projectDir, options.translationsPath),
+  ];
 
   const resolved = resolveModel({
     explicitModel: options.model ?? process.env.YAKUDOC_MT_MODEL,
@@ -63,7 +64,7 @@ export async function run(options: EngineRunOptions): Promise<void> {
     (message) => console.log(message)
   );
   const summary = await translatePending(
-    translationsPath,
+    translationsPaths,
     translate,
     (message) => console.log(message),
     undefined,
