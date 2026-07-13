@@ -5,36 +5,48 @@
 
 [日本語](./README.md) | English
 
-A toolset that translates JSDoc comments into your language (Japanese by default) and injects the translations into VSCode's language features (hover, completion, signature help).
+**Read your dependencies' docs in your language.**
 
-It never rewrites your code. The original JSDoc stays untouched — a `tsserver` plugin swaps **only what the editor displays** with the translation.
+lodash, zod, `@types/node` — the English JSDoc that shows up in your editor's hover can be displayed in Japanese (or 20 other languages) without changing a single line of code.
+
+```bash
+npx yakudoc add zod
+```
+
+That's it — hovering over zod's API now shows the docs in your language. If a community translation pack has been published for the library, **the translations are applied automatically** (zero translation work). If not, translate with the built-in model or any AI, then share the result with `yakudoc export` for the next person.
+
+Your own project's JSDoc can be translated with the same mechanism.
 
 ## Motivation
 
-English JSDoc is precise, but reading it costs a mental translation every time. On the other hand, rewriting comments in the source to Japanese is often off the table — the code belongs to a library, or to a team that works in English. yakudoc is built for exactly that situation:
+The English documentation you read the most every day is not a README or an official site — it is **the JSDoc of your dependencies, shown in the editor hover**. It is precise, but it costs a mental translation every time. And rewriting the comments is off the table: the code belongs to a library, or to a team that works in English.
 
-- The original text stays as-is (no noise in your Git diffs)
-- Translations only affect what the editor displays
-- The translation engine is pluggable (a built-in lightweight model, or prep files for any AI of your choice)
+yakudoc only touches what is displayed.
+
+- The original text stays as-is (neither `node_modules` nor your code is rewritten; no noise in Git diffs)
+- Translations are injected only into what the editor displays
+- Translations of a library are shared across all of its users — **once someone translates it, everyone benefits with a single `add`**
 
 ## How it works
 
-VSCode's JS/TS language features (hover, completion details, signature help) are all produced by `tsserver`. yakudoc registers itself as a **Language Service Plugin** on `tsserver` and rewrites the `documentation` / `tags` returned by `getQuickInfoAtPosition`, `getCompletionEntryDetails`, and friends with the translated text.
+VSCode's JS/TS language features (hover, completion details, signature help) are all produced by `tsserver`. yakudoc registers itself as a **Language Service Plugin** on `tsserver` and rewrites the `documentation` / `tags` returned by `getQuickInfoAtPosition` and friends with the translated text.
 
 ```text
-[your code]
-      │
-      ▼
+[your code]   [node_modules/zod/**.d.ts]
+      │              │
+      ▼              ▼
  tsserver (TypeScript itself)
       │
       ▼
- yakudoc-ts-plugin  ← swaps documentation with translations here
-      │
+ yakudoc-ts-plugin  ← swaps documentation with translations
+      │                ↑ matched by source-text hash
+      │        .yakudoc/translations.json  (your own code)
+      │        .yakudoc/packs/*.json       (dependency translation packs)
       ▼
  VSCode hover / completion / signature help
 ```
 
-Because it rewrites the output of TypeScript itself rather than adding a separate extension, translations never show up twice next to the original hover content.
+Matching is done by **hashing the original text**, so it does not matter which file a comment lives in. That is why it works on dependency docs out of the box, and why translations survive library upgrades as long as the original text has not changed.
 
 ## Packages
 
@@ -42,13 +54,13 @@ This is a monorepo consisting of the following packages.
 
 | Package | Role |
 | --- | --- |
-| `yakudoc` | The CLI (`init` / `extract` / `status` / `translate` / `doctor`). Extracts JSDoc and manages the translation file |
+| `yakudoc` | The CLI (`add` / `init` / `extract` / `status` / `translate` / `export` / `doctor`). Manages translation packs and the translation file |
 | `yakudoc-ts-plugin` | The `tsserver` plugin that swaps the displayed documentation |
 | `yakudoc-vscode` | VSCode extension: auto-registers the plugin in `tsconfig.json`, toggle UI, etc. |
 | `yakudoc-mt` (optional) | Bundles an open-weight translation model for fully offline translation |
 | `yakudoc-ai-prep` (optional) | Generates prep files so you can have any AI (e.g. Claude) do the translation |
 
-You only need one of `yakudoc-mt` / `yakudoc-ai-prep` — there is no need to install both.
+You only need one of `yakudoc-mt` / `yakudoc-ai-prep` (and neither, if you only use community translation packs).
 
 ## Setup
 
@@ -59,184 +71,171 @@ npm install --save-dev yakudoc yakudoc-ts-plugin
 npx yakudoc init
 ```
 
-`init` registers `yakudoc-ts-plugin` in your tsconfig.json (preserving comments) and runs the initial extraction in one go. It is safe to re-run: registration is skipped when already present, and existing translations are kept.
+`init` registers `yakudoc-ts-plugin` in your tsconfig.json (preserving comments) and runs the first extraction of your own code. It is safe to re-run.
 
-Just want a quick look? Running `npx yakudoc init` before installing anything also works — init tells you which packages are still missing.
+In VSCode, run "TypeScript: Restart TS Server" from the command palette afterwards.
 
-If you prefer to configure things manually, add the following to tsconfig.json:
+### 2. Add translations for your dependencies
 
-```jsonc
-{
-  "compilerOptions": {
-    "plugins": [{ "name": "yakudoc-ts-plugin" }]
-  }
-}
+```bash
+npx yakudoc add zod lodash
 ```
 
-After registration, run "TypeScript: Restart TS Server" from the VSCode command palette to pick it up.
+For each package this will:
+
+1. Extract JSDoc from the type definitions (`.d.ts`) in `node_modules`
+2. Apply translations from the community pack, if one has been published
+3. Write the pack to `.yakudoc/packs/<package>.json`
+
+```text
+zod@3.23.8: 431 entries from 12 declaration files
+  Community pack: applied 418 translations
+  Progress: 418 / 431 translated (97%) / 13 pending
+  Written to: .yakudoc/packs/zod.json
+```
+
+Commit `.yakudoc/` to Git and your whole team shares the same translations.
 
 ### 3. Install the VSCode extension (optional, recommended)
 
-Search for "yakudoc" in the Marketplace. The extension automates tsconfig.json registration and provides a status-bar toggle.
-
-From the command palette (`Cmd/Ctrl+Shift+P`) you can run the following without opening a terminal:
-
-| Command | Action |
-| --- | --- |
-| `yakudoc: Run setup (init)` | Runs `npx yakudoc init` in the integrated terminal |
-| `yakudoc: Extract JSDoc to translate (extract)` | Runs `npx yakudoc extract` in the integrated terminal |
-| `yakudoc: Show translation progress (status)` | Runs `npx yakudoc status` in the integrated terminal |
-| `yakudoc: Toggle translated docs (original / translated)` | Toggles between original and translated display |
-| `yakudoc: Register plugin in tsconfig.json` | Adds the plugin to an unregistered `tsconfig.json` |
+Search for "yakudoc" in the Marketplace. It automates tsconfig registration and provides a status-bar toggle, plus command-palette commands for init / extract / status.
 
 ## Usage
 
-### Extract translatable text
-
-```bash
-npx yakudoc extract
-```
-
-Scans the JSDoc comments in your project and writes the pending source texts to `.yakudoc/translations.json`.
-
-```json
-{
-  "a1b2c3d4": {
-    "original": "Fetches user data from the API.",
-    "translated": "",
-    "symbol": "src/api/user.ts#fetchUser"
-  }
-}
-```
-
-Code samples in `@example` and reference tags such as `@see` are excluded from extraction entirely. Inline `` `code` ``, `{@link ...}`, `{type}` annotations, and URLs inside descriptions are protected by escaping them to tokens like `<ph0>` so translation cannot break them; they are restored when written back.
-
-### Check progress
+### Checking progress
 
 ```bash
 npx yakudoc status
 ```
 
-Shows the number and ratio of translated / pending entries without modifying `translations.json`. Pending entries are listed with their symbol and original text, so you can see at a glance what to translate next.
+Aggregates translations.json and all packs, with a per-source breakdown. Use `--json` for machine-readable output and `--fail-on-pending` to exit with code 1 when anything is untranslated (for CI).
 
-```text
-Translation file: /path/to/project/.yakudoc/translations.json
-Progress: 12 / 20 translated (60%) / 8 pending
+### Translating
 
-Pending:
-  src/api/user.ts#fetchUser  Fetches user data from the API.
-  …
-```
+Entries that the community pack did not cover — and your own code — are translated with an engine. All files (translations.json + packs) are processed together, each unique source text is translated once, and `--pkg <name>` narrows the target to one pack.
 
-For scripts and CI, `--json` switches to machine-readable output and `--fail-on-pending` exits with code 1 when untranslated entries remain.
+There are two engines. If exactly one is installed, `--engine` can be omitted.
 
-```bash
-npx yakudoc status --json                 # prints { total, translated, untranslated, pending }
-npx yakudoc status --fail-on-pending       # exit 1 if anything is untranslated (catch gaps in CI)
-```
-
-### Translate
-
-There are two engines. When only one of them is installed, `--engine` can be omitted — plain `npx yakudoc translate` picks it automatically.
-
-#### Option A: use the built-in model
+#### Option A: built-in model
 
 ```bash
 npm install --save-dev yakudoc-mt
 npx yakudoc translate --engine local
 ```
 
-Offline, no API key required — translations are written straight into `translations.json`. It uses an open-weight translation model, so it favors convenience over polish. The model is downloaded on first run (progress is printed in 10% steps).
-
-The model can be chosen to match your machine. The default is `auto`, which picks a size based on installed memory.
+Offline, no API key. Uses an open-weight MT model — convenient rather than perfect. The first run downloads the model (progress shown in 10% steps).
 
 ```bash
-npx yakudoc translate --engine local --model-size small   # NLLB-200 distilled 600M (light & fast)
-npx yakudoc translate --engine local --model-size large   # mBART-50 (better quality, needs memory)
-npx yakudoc translate --engine local --model <HF model id>  # pin an explicit model
+npx yakudoc translate --engine local --model-size small   # NLLB-200 distilled 600M (fast, light)
+npx yakudoc translate --engine local --model-size large   # mBART-50 (better quality, needs RAM)
+npx yakudoc translate --engine local --model <HF model id>
 ```
 
 | Size | Model | Notes |
 | --- | --- | --- |
-| `small` | NLLB-200 distilled 600M | Light and fast. Download is a few hundred MB |
-| `large` | mBART-50 | More natural output. 1GB+ download, needs memory and time |
+| `small` | NLLB-200 distilled 600M | Light and fast; a few hundred MB download |
+| `large` | mBART-50 | More natural output; 1GB+ download, more RAM/time |
 | `auto` (default) | `large` with 16GB+ RAM, otherwise `small` | — |
 
-The environment variables `YAKUDOC_MT_MODEL_SIZE` (`small`/`large`/`auto`) and `YAKUDOC_MT_MODEL` (explicit model id) work as well.
+Environment variables `YAKUDOC_MT_MODEL_SIZE` (`small`/`large`/`auto`) and `YAKUDOC_MT_MODEL` are also honored.
 
-#### Option B: let any AI translate
-
-First generate the prep files:
+#### Option B: any AI of your choice
 
 ```bash
 npm install --save-dev yakudoc-ai-prep
 npx yakudoc translate --engine prep
 ```
 
-Three files are produced under `.yakudoc/ai/`:
+This writes three files under `.yakudoc/`:
 
-- `prompt.md` — a ready-to-paste request for an LLM: translation rules, glossary, and the protected source texts
-- `request.json` — a machine-readable list of source texts with the placeholder mapping
-- `glossary.json` (directly under `.yakudoc/`) — the glossary. Grow it as `{ "english": "japanese" }` pairs and it is reflected into `prompt.md`
+- `ai/prompt.md` — a ready-to-paste request for an LLM, including rules, the glossary, and the protected source texts
+- `ai/request.json` — machine-readable source list and placeholder table
+- `glossary.json` — the glossary; grow it as `{ "source term": "translation" }`
 
-Hand `prompt.md` to an LLM such as Claude, save the returned JSON as `.yakudoc/ai/response.json`, and write it back with:
+Hand `prompt.md` to Claude (or any LLM), save the returned JSON as `.yakudoc/ai/response.json`, and write it back:
 
 ```bash
 npx yakudoc translate --engine prep --apply .yakudoc/ai/response.json
 ```
 
-Protected tokens (`<ph0>` etc.) are restored on write-back. A translation missing any token is rejected and stays pending, so code and links in the original can never be corrupted.
+Placeholder tokens (`<ph0>` …) are restored on write-back; translations that lost a token are rejected and stay pending, so inline code and links never break.
 
-### See it in the editor
+### Reflecting changes
 
-Once `translations.json` is saved, the `tsserver` plugin detects the file change automatically and updates the display. No editor restart required.
+Saving translations.json or a pack is enough — the `tsserver` plugin watches for file changes (including packs being added or removed) and updates the display without restarting the editor.
 
-### When something doesn't work
+### Translating your own code
 
-Diagnose your setup with:
+```bash
+npx yakudoc extract
+```
+
+Scans the JSDoc comments of your project and writes pending entries to `.yakudoc/translations.json`. Code samples in `@example`, reference tags like `@see`, inline `` `code` ``, `{@link ...}`, `{types}` and URLs are protected or excluded so translations cannot break them.
+
+### When something is off
 
 ```bash
 npx yakudoc doctor
 ```
 
-It checks five things — plugin registration (tsconfig.json), the plugin package itself, translations.json, the target language config, and translation engines — and prints the exact command to fix whatever is broken. Exits with code 1 while problems remain.
+Checks plugin registration, plugin installation, translation files, translation packs, target language, and engines — and prints the fix for anything wrong (exit code 1 if problems remain).
 
-If every check passes but hovers still show English, run "TypeScript: Restart TS Server" from the command palette.
+If everything is ✔ but the hover has not changed, run "TypeScript: Restart TS Server".
 
-## Choosing the target language
+## Sharing translation packs
 
-Japanese is the default, but other languages can be selected.
+This is the most important property of yakudoc: **a dependency's translations are a shared asset, not something personal.**
+
+When you finish translating a pack, one command produces a shareable file:
+
+```bash
+npx yakudoc export zod
+```
+
+Open a pull request adding the generated `zod.json` to the [yakudoc-packs](https://github.com/daiki-moritake/yakudoc-packs) repository as `packs/en/…` (per language), and from then on every `npx yakudoc add zod` in the world gets those translations automatically.
+
+- Entries are keyed by source-text hash, so packs are **robust to version differences** (unchanged API docs keep their translations)
+- `add` never overwrites translations you made locally (community packs only fill pending entries)
+- The intended workflow is Wikipedia-style: machine-translated packs polished by humans through PRs
+
+The registry is replaceable (private/company registries work): priority is `--registry` > `YAKUDOC_REGISTRY` env var > `registry` in `.yakudoc/config.json` > default. Use `add --no-fetch` for offline runs.
+
+## Changing the target language
+
+The default target is Japanese, but any supported language can be used.
 
 ```bash
 npx yakudoc init --lang ko                       # set Korean as the target
 npx yakudoc translate --engine local --lang de   # German for this run only
 ```
 
-`--lang` on `init` is saved to `.yakudoc/config.json` and used by subsequent `translate` runs; `--lang` on `translate` is a one-off override.
+`--lang` at `init` is saved to `.yakudoc/config.json` and used by subsequent `add` / `translate`. Community packs are organized per language (`packs/<code>/`).
 
-Supported languages: `ja` `ko` `zh` `de` `fr` `es` `pt` `it` `nl` `sv` `fi` `pl` `cs` `uk` `ru` `tr` `ar` `hi` `id` `vi` `th` (languages supported by both built-in models, NLLB-200 and mBART-50)
+Supported: `ja` `ko` `zh` `de` `fr` `es` `pt` `it` `nl` `sv` `fi` `pl` `cs` `uk` `ru` `tr` `ar` `hi` `id` `vi` `th` (languages supported by both NLLB-200 and mBART-50).
 
-When the target is not Japanese, the request file (prompt.md) generated by `--engine prep` is written in English. Japanese-specific postprocessing (punctuation normalization) is applied only when the target is Japanese.
-
-Each translation records the language it was written in, so if you switch the target language later, translations made for the previous language automatically fall back to "pending" (reflected in `status` counts and picked up by `translate`).
-
-Glossaries are per-language: Japanese keeps using `.yakudoc/glossary.json`, while other languages use `.yakudoc/glossary.<code>.json` (e.g. `glossary.de.json`).
+Translations record the language they were made in; switching the target later automatically returns entries translated in the previous language to "pending". Glossaries are per-language: `glossary.json` for Japanese, `glossary.<code>.json` otherwise.
 
 ## Incremental translation
 
-Translations are keyed by a hash of the original comment. When you edit code and a JSDoc comment changes, only that entry falls back to "pending" — unrelated changes never invalidate the rest of your translations.
+Translation keys are hashes of the source text.
 
-Re-running `npx yakudoc extract` keeps existing translations. Entries whose original text no longer exists in the source are kept by default (so a missed extraction can't lose translations); pass `--prune` to delete them.
+- **Your code**: editing a JSDoc comment invalidates only that entry. Re-running `extract` preserves existing translations
+- **Dependencies**: after upgrading a library, re-run `yakudoc add <package>`. Only APIs whose docs actually changed become pending; everything else carries over
+
+Entries whose source text no longer exists are kept by default; pass `--prune` to delete them.
 
 ## Scope and limitations
 
-- Only TypeScript / JavaScript are supported at the moment (yakudoc relies on the `tsserver` plugin mechanism)
+- TypeScript / JavaScript only for now (it relies on the `tsserver` plugin mechanism)
+- For dependencies, the extraction source is JSDoc in type definitions (`.d.ts` / `.d.mts` / `.d.cts`). Packages without type definitions are not supported (point at `@types/*` instead)
 - Python docstrings and closed-source language servers such as Pylance are not supported
-- Translation quality depends on the engine you choose (built-in model or an external AI)
+- Translation quality depends on the engine (built-in model or external AI) and on the community packs
 
 ## Contributing
 
-Bug reports, feature proposals, and pull requests are welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and how to run the tests.
+Bug reports, feature proposals, and pull requests are welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the dev setup and how to run tests.
+
+Translation packs go to [yakudoc-packs](https://github.com/daiki-moritake/yakudoc-packs).
 
 ## License
 
