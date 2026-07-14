@@ -1,6 +1,6 @@
 {
   "name": "yakudoc-ai-prep",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Generates placeholder-protected source files and a glossary so any LLM can translate yakudoc entries, then writes the results back",
   "license": "MIT",
   "engines": {
