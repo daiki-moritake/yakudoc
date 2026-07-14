@@ -1,13 +1,19 @@
 #!/usr/bin/env node
 // ローカルから npm に公開する。
 //
-//   npm run publish:local               # 公開する(確認あり)
-//   npm run publish:local -- --dry-run  # 公開せず、公開される内容だけ確認する
-//   npm run publish:local -- --yes      # 確認プロンプトを省略する
-//   npm run publish:local 0.2.0         # version を明示(package.json と一致必須)
+//   npm run publish:local                 # 公開する(確認あり)
+//   npm run publish:local -- --dry-run    # 公開せず、公開される内容だけ確認する
+//   npm run publish:local -- --yes        # 確認プロンプトを省略する
+//   npm run publish:local -- --otp 123456 # 2FA のワンタイムパスワードを渡す
+//   npm run publish:local 0.2.0           # version を明示(package.json と一致必須)
 //
 // 通常は `npm run release`(タグ push → GitHub Actions が provenance 付きで
 // publish)を使う。こちらは手元から直接 publish するための代替コマンド。
+//
+// 2FA(二要素認証)を有効にしている場合は、publish に OTP が必要です。
+// `--otp <code>` で渡すか、渡さなければ npm が対話的に尋ねます(stdin を
+// 引き継ぐため)。4 パッケージを 1 つの OTP でまとめて公開できるよう、
+// --otp 指定を推奨します。
 //
 // リリースタグとの一致を検証する:
 //   タグ v<version> が存在し、HEAD がそのコミットと一致し、作業ツリーが
@@ -60,7 +66,21 @@ async function main() {
   const rawArgs = process.argv.slice(2);
   const dryRun = rawArgs.includes("--dry-run");
   const skipConfirm = rawArgs.includes("--yes") || rawArgs.includes("-y");
-  const versionArg = rawArgs.find((arg) => !arg.startsWith("-"));
+  // --otp <code> / --otp=<code> を取り出す。値を positional と誤認しないよう、
+  // ここで消費してから残りを positional 引数(version)として扱う。
+  let otp;
+  const positionals = [];
+  for (let i = 0; i < rawArgs.length; i++) {
+    const arg = rawArgs[i];
+    if (arg === "--otp") {
+      otp = rawArgs[++i];
+    } else if (arg.startsWith("--otp=")) {
+      otp = arg.slice("--otp=".length);
+    } else if (!arg.startsWith("-")) {
+      positionals.push(arg);
+    }
+  }
+  const versionArg = positionals[0];
 
   // 1. version の整合チェック
   const version = resolveAlignedVersion(versionArg);
@@ -119,11 +139,15 @@ ${plan
       continue;
     }
     const args = ["publish", "-w", name, "--access", "public"];
+    if (otp) {
+      args.push(`--otp=${otp}`);
+    }
     if (dryRun) {
       args.push("--dry-run");
     }
     console.log(`\n${dryRun ? "[dry-run] " : ""}publish: ${name}@${v}`);
-    run("npm", args, INHERIT);
+    // stdin も引き継ぐ: 2FA 有効時に npm が OTP を対話入力/ブラウザ認証できるようにする
+    run("npm", args, { stdio: "inherit" });
   }
 
   console.log(
