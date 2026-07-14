@@ -21,6 +21,7 @@ export const DEFAULT_TARGET_LANG = "ja";
 
 export const LANGUAGES: readonly LanguageSpec[] = [
   { code: "ja", name: "Japanese", nllb: "jpn_Jpan", mbart: "ja_XX" },
+  { code: "en", name: "English", nllb: "eng_Latn", mbart: "en_XX" },
   { code: "ko", name: "Korean", nllb: "kor_Hang", mbart: "ko_KR" },
   { code: "zh", name: "Simplified Chinese", nllb: "zho_Hans", mbart: "zh_CN" },
   { code: "de", name: "German", nllb: "deu_Latn", mbart: "de_DE" },

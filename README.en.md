@@ -7,7 +7,7 @@
 
 **Read your dependencies' docs in your language.**
 
-lodash, zod, `@types/node` — the English JSDoc that shows up in your editor's hover can be displayed in Japanese (or 20 other languages) without changing a single line of code.
+lodash, zod, `@types/node` — the English JSDoc that shows up in your editor's hover can be displayed in Japanese (or 21 other languages) without changing a single line of code.
 
 ```bash
 npx yakudoc add zod
@@ -211,7 +211,7 @@ npx yakudoc translate --engine local --lang de   # German for this run only
 
 `--lang` at `init` is saved to `.yakudoc/config.json` and used by subsequent `add` / `translate`. Community packs are organized per language (`packs/<code>/`).
 
-Supported: `ja` `ko` `zh` `de` `fr` `es` `pt` `it` `nl` `sv` `fi` `pl` `cs` `uk` `ru` `tr` `ar` `hi` `id` `vi` `th` (languages supported by both NLLB-200 and mBART-50).
+Supported: `ja` `en` `ko` `zh` `de` `fr` `es` `pt` `it` `nl` `sv` `fi` `pl` `cs` `uk` `ru` `tr` `ar` `hi` `id` `vi` `th` (languages supported by both NLLB-200 and mBART-50). `en` is a target for reading packages whose source docs are not in English (such as yakudoc itself) in English.
 
 Translations record the language they were made in; switching the target later automatically returns entries translated in the previous language to "pending". Glossaries are per-language: `glossary.json` for Japanese, `glossary.<code>.json` otherwise.
 
