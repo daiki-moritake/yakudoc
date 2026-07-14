@@ -7,67 +7,27 @@
 //
 // やること:
 //   1. 公開 4 パッケージの version が揃っているか確認する
-//   2. main ブランチ・作業ツリーがクリーンか確認する
-//   3. リリースノート release-notes/v<version>.md の存在を確認する
+//   2. リリースノート release-notes/v<version>.md の存在を確認する
 //      → 無ければ用意を促して終了する(タグは作らない)
+//   3. main ブランチ・作業ツリーがクリーンか・origin と同期しているか確認する
 //   4. タグ v<version> を作成して push する(Release ワークフローが npm publish を行う)
 //   5. gh release でリリースノートを GitHub に公開する
 //
 // タグ push と GitHub Release は取り消しの効きにくい公開操作のため、
 // 既定では実行前に内容を表示して確認を求める(--yes で省略)。
 
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { createInterface } from "node:readline";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+import {
+  confirm,
+  fail,
+  resolveAlignedVersion,
+  ROOT,
+  run,
+  tryRun,
+} from "./lib.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PUBLISH_PACKAGES = [
-  "yakudoc",
-  "yakudoc-ts-plugin",
-  "yakudoc-ai-prep",
-  "yakudoc-mt",
-];
 const NOTES_DIR = "release-notes";
-
-/** コマンドを実行して stdout(trim 済み)を返す。失敗時は例外。
- *  stdout を inherit した場合 execFileSync は null を返すため空文字に丸める。 */
-function run(cmd, args, options = {}) {
-  const out = execFileSync(cmd, args, {
-    cwd: ROOT,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    ...options,
-  });
-  return (out ?? "").trim();
-}
-
-/** 失敗しても例外にせず { ok, out } を返す(存在チェック用) */
-function tryRun(cmd, args) {
-  try {
-    return { ok: true, out: run(cmd, args) };
-  } catch (error) {
-    return { ok: false, out: (error.stderr || error.stdout || "").toString().trim() };
-  }
-}
-
-function fail(message) {
-  console.error(`\n✖ ${message}\n`);
-  process.exit(1);
-}
-
-function readPackageVersion(name) {
-  const file = path.join(ROOT, "packages", name, "package.json");
-  return JSON.parse(readFileSync(file, "utf8")).version;
-}
-
-async function confirm(question) {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await new Promise((resolve) => rl.question(question, resolve));
-  rl.close();
-  return /^y(es)?$/i.test(answer.trim());
-}
 
 function printMissingNotesHelp(version, notesRelPath) {
   const tag = `v${version}`;
@@ -94,23 +54,7 @@ async function main() {
   const versionArg = rawArgs.find((arg) => !arg.startsWith("-"));
 
   // 1. version の決定と整合チェック
-  const version = readPackageVersion("yakudoc");
-  if (versionArg && versionArg !== version) {
-    fail(
-      `指定した version(${versionArg})が packages/yakudoc の version(${version})と一致しません。\n` +
-        `  先に \`npm version ${versionArg} -w ${PUBLISH_PACKAGES.join(" -w ")} --no-git-tag-version\` で揃えてください。`
-    );
-  }
-  const mismatched = PUBLISH_PACKAGES.map((name) => [name, readPackageVersion(name)]).filter(
-    ([, v]) => v !== version
-  );
-  if (mismatched.length > 0) {
-    fail(
-      `公開パッケージの version が揃っていません(基準: yakudoc@${version}):\n` +
-        mismatched.map(([name, v]) => `  ${name}@${v}`).join("\n") +
-        `\n\n  \`npm version ${version} -w ${PUBLISH_PACKAGES.join(" -w ")} --no-git-tag-version\` で揃えてください。`
-    );
-  }
+  const version = resolveAlignedVersion(versionArg);
   const tag = `v${version}`;
 
   // 2. リリースノートの存在チェック(要望の中心機能。無ければ用意を促して終了)
@@ -162,7 +106,9 @@ async function main() {
 リリース内容:
   タグ:         ${tag}
   コミット:     ${local.slice(0, 12)}(origin/main)
-  パッケージ:   ${PUBLISH_PACKAGES.map((n) => `${n}@${version}`).join(", ")}
+  パッケージ:   ${["yakudoc", "yakudoc-ts-plugin", "yakudoc-ai-prep", "yakudoc-mt"]
+    .map((n) => `${n}@${version}`)
+    .join(", ")}
   ノート:       ${notesRelPath}(${notesBody.split("\n").length} 行)
 
 このあと行うこと:
