@@ -8,6 +8,7 @@
   "scripts": {
     "build": "npm run build -w yakudoc && npm run build -w yakudoc-ts-plugin && npm run build -w yakudoc-ai-prep && npm run build -w yakudoc-mt && npm run build -w yakudoc-vscode",
     "test": "npm run test --workspaces --if-present",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "publish:local": "node scripts/publish-local.mjs"
   }
 }
