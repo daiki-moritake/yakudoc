@@ -1,6 +1,6 @@
 {
   "name": "yakudoc-mt",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Translates yakudoc entries offline with an open-weight machine translation model (transformers.js)",
   "license": "MIT",
   "engines": {

@@ -1,6 +1,6 @@
 {
   "name": "yakudoc",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Read your dependencies' JSDoc in your language, right in the editor — CLI and core library (add / init / extract / status / translate / export / doctor)",
   "license": "MIT",
   "engines": {
