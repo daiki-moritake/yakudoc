@@ -135,6 +135,18 @@ export const vscodeApi = {
   StatusBarAlignment: { Left: 1, Right: 2 },
   ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
 
+  // ロケール未適用時の vscode.l10n.t を再現する。バンドルが無いので原文
+  // (英語ソース文字列)を返し、{0}/{1}... の位置引数だけ差し込む。
+  l10n: {
+    t: (message: string, ...args: unknown[]): string =>
+      args.length === 0
+        ? message
+        : message.replace(/\{(\d+)\}/g, (whole, index: string) => {
+            const i = Number(index);
+            return i < args.length ? String(args[i]) : whole;
+          }),
+  },
+
   Uri: {
     file: (p: string) => uri(p),
     joinPath: (base: FakeUri, ...segments: string[]) =>

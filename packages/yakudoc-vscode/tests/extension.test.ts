@@ -48,10 +48,11 @@ async function activateWith(options: FakeOptions): Promise<FakeState> {
 }
 
 describe("activate", () => {
-  it("有効時はステータスバーに JP を表示し、tsserver へ enabled:true を送る", async () => {
+  it("有効時はステータスバーに翻訳表示中を出し、tsserver へ enabled:true を送る", async () => {
     const state = await activateWith({ enabled: true, hasTsExtension: true });
 
-    assert.ok(state.statusBar.text.includes("JP"));
+    // 既定ロケール(バンドル未適用)では英語ソース文字列が出る
+    assert.ok(state.statusBar.text.includes("Translated"));
     assert.equal(state.statusBar.visible, true);
     assert.equal(state.statusBar.command, "yakudoc.toggle");
     assert.deepEqual(state.configurePluginCalls.at(-1), {
@@ -60,9 +61,9 @@ describe("activate", () => {
     });
   });
 
-  it("無効設定で起動するとステータスバーに EN を表示する", async () => {
+  it("無効設定で起動するとステータスバーに原文表示中を出す", async () => {
     const state = await activateWith({ enabled: false, hasTsExtension: true });
-    assert.ok(state.statusBar.text.includes("EN"));
+    assert.ok(state.statusBar.text.includes("Original"));
   });
 });
 
@@ -74,7 +75,7 @@ describe("yakudoc.toggle", () => {
     await state.runCommand("yakudoc.toggle");
 
     assert.equal(state.getEnabled(), false);
-    assert.ok(state.statusBar.text.includes("EN"));
+    assert.ok(state.statusBar.text.includes("Original"));
     assert.deepEqual(state.configurePluginCalls.at(-1), {
       name: "yakudoc-ts-plugin",
       config: { enabled: false },
@@ -83,7 +84,7 @@ describe("yakudoc.toggle", () => {
 
     await state.runCommand("yakudoc.toggle");
     assert.equal(state.getEnabled(), true);
-    assert.ok(state.statusBar.text.includes("JP"));
+    assert.ok(state.statusBar.text.includes("Translated"));
     assert.deepEqual(state.configurePluginCalls.at(-1)?.config, { enabled: true });
   });
 });
@@ -98,7 +99,7 @@ describe("yakudoc.init / yakudoc.extract / yakudoc.showStatus", () => {
     // ターミナル完了は検知できないため、再起動ボタン付きの案内を出す
     assert.ok(
       state.messages.some(
-        (m) => m.kind === "info" && m.message.includes("TS Server の再起動")
+        (m) => m.kind === "info" && m.message.includes("restart the TS Server")
       )
     );
     assert.ok(!state.executedCommands.includes("typescript.restartTsServer"));
@@ -107,7 +108,7 @@ describe("yakudoc.init / yakudoc.extract / yakudoc.showStatus", () => {
   it("init の案内で「再起動」を選ぶと TS Server を再起動する", async () => {
     const state = await activateWith({
       hasTsExtension: true,
-      infoResponses: { "init をターミナルで実行": "再起動" },
+      infoResponses: { "Running init in the terminal": "Restart" },
     });
     await state.runCommand("yakudoc.init");
 
@@ -154,7 +155,7 @@ describe("yakudoc.registerPlugin", () => {
     const state = await activateWith({
       hasTsExtension: true,
       findFilesResult: [tsconfigPath],
-      infoResponses: { "登録しました": "再起動" },
+      infoResponses: { "Registered the plugin": "Restart" },
     });
 
     await state.runCommand("yakudoc.registerPlugin");
@@ -180,7 +181,9 @@ describe("yakudoc.registerPlugin", () => {
     await state.runCommand("yakudoc.registerPlugin");
 
     assert.equal(fs.readFileSync(tsconfigPath, "utf8"), content);
-    assert.ok(state.messages.some((m) => m.message.includes("すべて登録済み")));
+    assert.ok(
+      state.messages.some((m) => m.message.includes("all already registered"))
+    );
     assert.ok(!state.executedCommands.includes("typescript.restartTsServer"));
   });
 
@@ -200,7 +203,7 @@ describe("yakudoc.registerPlugin", () => {
 
     assert.ok(
       state.messages.some(
-        (m) => m.kind === "warning" && m.message.includes("編集できません")
+        (m) => m.kind === "warning" && m.message.includes("Cannot edit")
       )
     );
     // ファイルは書き換えない
@@ -212,7 +215,7 @@ describe("yakudoc.registerPlugin", () => {
     await state.runCommand("yakudoc.registerPlugin");
     assert.ok(
       state.messages.some(
-        (m) => m.kind === "warning" && m.message.includes("見つかりません")
+        (m) => m.kind === "warning" && m.message.includes("No tsconfig.json was found")
       )
     );
   });
@@ -227,7 +230,10 @@ describe("起動時の自動登録提案", () => {
     const state = await activateWith({
       hasTsExtension: true,
       workspaceFolders: [dir],
-      infoResponses: { "登録されていません": "登録する", "登録しました": "再起動" },
+      infoResponses: {
+        "is not registered": "Register",
+        "Registered the plugin": "Restart",
+      },
     });
     // activate 内の offerRegistrationIfNeeded は非同期に走るので待つ
     await new Promise((resolve) => setImmediate(resolve));
@@ -250,6 +256,6 @@ describe("起動時の自動登録提案", () => {
     });
     await new Promise((resolve) => setImmediate(resolve));
 
-    assert.ok(!state.messages.some((m) => m.message.includes("登録されていません")));
+    assert.ok(!state.messages.some((m) => m.message.includes("is not registered")));
   });
 });

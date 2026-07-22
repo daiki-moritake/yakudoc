@@ -1,0 +1,16 @@
+{
+  "$(globe) Translated": "$(globe) 訳 JP",
+  "$(globe) Original": "$(globe) 訳 EN",
+  "yakudoc: Showing JSDoc translated (click to show the original)": "yakudoc: JSDoc を日本語訳で表示中(クリックで原文に戻す)",
+  "yakudoc: Showing JSDoc as the original (click to show translations)": "yakudoc: JSDoc を原文で表示中(クリックで日本語訳に切り替え)",
+  "Restart": "再起動",
+  "Register": "登録する",
+  "Later": "後で",
+  "yakudoc: Registered the plugin. Restart the TS Server to apply it.": "yakudoc: プラグインを登録しました。反映には TS Server の再起動が必要です。",
+  "yakudoc: Cannot edit {0}: {1}": "yakudoc: {0} を編集できません: {1}",
+  "yakudoc: No tsconfig.json was found in the workspace.": "yakudoc: ワークスペースに tsconfig.json が見つかりませんでした。",
+  "Select the tsconfig.json to register the plugin in": "プラグインを登録する tsconfig.json を選択してください",
+  "yakudoc: The selected tsconfig.json files are all already registered.": "yakudoc: 選択した tsconfig.json にはすべて登録済みです。",
+  "yakudoc: yakudoc-ts-plugin is not registered in tsconfig.json. Register it?": "yakudoc: tsconfig.json に yakudoc-ts-plugin が登録されていません。登録しますか?",
+  "yakudoc: Running init in the terminal. If the plugin was newly registered, restart the TS Server after it finishes.": "yakudoc: init をターミナルで実行しています。プラグインを新規登録した場合、完了後に TS Server の再起動が必要です。"
+}
