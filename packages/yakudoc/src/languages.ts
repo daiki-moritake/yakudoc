@@ -6,6 +6,8 @@
  * 体系を持つため、NLLB-200 / mBART-50 双方のコードをここで対応付ける。
  * 掲載言語は両モデルが対応しているものに限る。
  */
+import { m } from "./i18n";
+
 export interface LanguageSpec {
   /** yakudoc で使う言語コード(ISO 639-1) */
   code: string;
@@ -58,8 +60,7 @@ export function resolveLanguage(code: string): LanguageSpec {
   const found = LANGUAGES.find((lang) => lang.code === normalized);
   if (!found) {
     throw new Error(
-      `未対応の言語コードです: ${code}\n` +
-        `  対応コード: ${supportedLanguageCodes().join(", ")}`
+      m().unsupportedLang(code, supportedLanguageCodes().join(", "))
     );
   }
   return found;

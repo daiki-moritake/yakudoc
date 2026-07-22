@@ -4,6 +4,7 @@ import * as ts from "typescript";
 import { applyEdits, modify, parse } from "jsonc-parser";
 import { configPathFor, readConfig, resolveTargetLang, writeConfig } from "./config";
 import { extractProject, type ExtractSummary } from "./extract";
+import { m } from "./i18n";
 import { resolveInstalledPackage } from "./installed";
 
 export const PLUGIN_NAME = "yakudoc-ts-plugin";
@@ -38,10 +39,7 @@ export function addPluginToTsconfig(
   const root = (parse(tsconfigText) ?? {}) as TsconfigLike;
   const localPlugins = root.compilerOptions?.plugins;
   if (localPlugins !== undefined && !Array.isArray(localPlugins)) {
-    throw new Error(
-      "tsconfig.json の compilerOptions.plugins が配列ではありません。" +
-        "配列に修正してから再実行してください。"
-    );
+    throw new Error(m().pluginsNotArray());
   }
 
   const known = (effectivePlugins ?? localPlugins ?? []) as PluginEntry[];
@@ -138,10 +136,7 @@ export function initProject(options: InitOptions): InitSummary {
     ? path.resolve(projectDir, options.tsconfigPath)
     : ts.findConfigFile(projectDir, ts.sys.fileExists, "tsconfig.json");
   if (!configPath || !ts.sys.fileExists(configPath)) {
-    throw new Error(
-      "tsconfig.json が見つかりません。--project でパスを指定するか、" +
-        "`npx tsc --init` で作成してください。"
-    );
+    throw new Error(m().tsconfigNotFoundInit());
   }
 
   const tsconfigText = fs.readFileSync(configPath, "utf8");

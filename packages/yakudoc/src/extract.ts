@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import * as ts from "typescript";
+import { m } from "./i18n";
 import { hashText } from "./normalize";
 import {
   mergeTranslations,
@@ -137,9 +138,7 @@ export function extractProject(options: ExtractOptions): ExtractSummary {
     ? path.resolve(projectDir, options.tsconfigPath)
     : ts.findConfigFile(projectDir, ts.sys.fileExists, "tsconfig.json");
   if (!configPath || !ts.sys.fileExists(configPath)) {
-    throw new Error(
-      "tsconfig.json が見つかりません。--project でパスを指定してください。"
-    );
+    throw new Error(m().tsconfigNotFoundExtract());
   }
 
   const configFile = ts.readConfigFile(configPath, ts.sys.readFile);

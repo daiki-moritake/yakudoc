@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as ts from "typescript";
 import { extractFromSourceFile, type ExtractedComment } from "./extract";
+import { m } from "./i18n";
 import { resolveInstalledPackage } from "./installed";
 
 /** インストール済みパッケージの所在とバージョン */
@@ -21,10 +22,7 @@ export function resolveInstalledPackageInfo(
 ): InstalledPackageInfo {
   const dir = resolveInstalledPackage(projectDir, packageName);
   if (!dir) {
-    throw new Error(
-      `${packageName} が node_modules に見つかりません。` +
-        `\n  npm install ${packageName} でインストールしてから再実行してください。`
-    );
+    throw new Error(m().packageNotInstalled(packageName));
   }
   let version = "";
   try {
@@ -94,10 +92,8 @@ export function extractInstalledPackage(
   const info = resolveInstalledPackageInfo(projectDir, packageName);
   const files = collectDeclarationFiles(info.dir);
   if (files.length === 0) {
-    throw new Error(
-      `${packageName} に型定義ファイル(.d.ts)が見つかりません。` +
-        `\n  型定義が別パッケージの場合はそちらを指定してください(例: @types/${packageName.replace(/^@.*?\//, "")})。`
-    );
+    const typesHint = `@types/${packageName.replace(/^@.*?\//, "")}`;
+    throw new Error(m().noTypeDefinitions(packageName, typesHint));
   }
 
   const comments: ExtractedComment[] = [];

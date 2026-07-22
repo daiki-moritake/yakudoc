@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { m } from "./i18n";
 import { DEFAULT_TARGET_LANG, resolveLanguage } from "./languages";
 
 /** .yakudoc/config.json の形式 */
@@ -34,9 +35,10 @@ export function readConfig(configPath: string): YakudocConfig {
       return {};
     }
     throw new Error(
-      `${configPath} を読み込めませんでした: ${
+      m().configReadFailed(
+        configPath,
         error instanceof Error ? error.message : String(error)
-      }`
+      )
     );
   }
 
@@ -44,16 +46,10 @@ export function readConfig(configPath: string): YakudocConfig {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error(
-      `${configPath} を JSON として解釈できませんでした。` +
-        `\n  { "targetLang": "ja" } の形式で保存し直してください。`
-    );
+    throw new Error(m().configNotJson(configPath));
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error(
-      `${configPath} の内容がオブジェクトではありません。` +
-        `\n  { "targetLang": "ja" } の形式で保存し直してください。`
-    );
+    throw new Error(m().configNotObject(configPath));
   }
 
   const { targetLang, registry } = parsed as YakudocConfig;
