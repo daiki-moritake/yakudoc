@@ -47,9 +47,11 @@ async function registerInto(uris: vscode.Uri[]): Promise<number> {
     } catch (error) {
       // 編集できないファイル(plugins が配列以外など)は飛ばして知らせる
       void vscode.window.showWarningMessage(
-        `yakudoc: ${vscode.workspace.asRelativePath(uri)} を編集できません: ${
+        vscode.l10n.t(
+          "yakudoc: Cannot edit {0}: {1}",
+          vscode.workspace.asRelativePath(uri),
           error instanceof Error ? error.message : String(error)
-        }`
+        )
       );
       continue;
     }
@@ -77,11 +79,14 @@ function runInTerminal(command: string): void {
 }
 
 async function offerTsServerRestart(): Promise<void> {
+  const restart = vscode.l10n.t("Restart");
   const answer = await vscode.window.showInformationMessage(
-    "yakudoc: プラグインを登録しました。反映には TS Server の再起動が必要です。",
-    "再起動"
+    vscode.l10n.t(
+      "yakudoc: Registered the plugin. Restart the TS Server to apply it."
+    ),
+    restart
   );
-  if (answer === "再起動") {
+  if (answer === restart) {
     await vscode.commands.executeCommand("typescript.restartTsServer");
   }
 }
@@ -94,7 +99,7 @@ async function registerPluginCommand(): Promise<void> {
   );
   if (files.length === 0) {
     void vscode.window.showWarningMessage(
-      "yakudoc: ワークスペースに tsconfig.json が見つかりませんでした。"
+      vscode.l10n.t("yakudoc: No tsconfig.json was found in the workspace.")
     );
     return;
   }
@@ -105,7 +110,9 @@ async function registerPluginCommand(): Promise<void> {
       files.map((uri) => ({ label: vscode.workspace.asRelativePath(uri), uri })),
       {
         canPickMany: true,
-        placeHolder: "プラグインを登録する tsconfig.json を選択してください",
+        placeHolder: vscode.l10n.t(
+          "Select the tsconfig.json to register the plugin in"
+        ),
       }
     );
     if (!picked || picked.length === 0) {
@@ -119,7 +126,9 @@ async function registerPluginCommand(): Promise<void> {
     await offerTsServerRestart();
   } else {
     void vscode.window.showInformationMessage(
-      "yakudoc: 選択した tsconfig.json にはすべて登録済みです。"
+      vscode.l10n.t(
+        "yakudoc: The selected tsconfig.json files are all already registered."
+      )
     );
   }
 }
@@ -152,12 +161,15 @@ async function offerRegistrationIfNeeded(
     return;
   }
   await context.workspaceState.update("yakudoc.registrationPrompted", true);
+  const register = vscode.l10n.t("Register");
   const answer = await vscode.window.showInformationMessage(
-    "yakudoc: tsconfig.json に yakudoc-ts-plugin が登録されていません。登録しますか?",
-    "登録する",
-    "後で"
+    vscode.l10n.t(
+      "yakudoc: yakudoc-ts-plugin is not registered in tsconfig.json. Register it?"
+    ),
+    register,
+    vscode.l10n.t("Later")
   );
-  if (answer === "登録する" && (await registerInto(missing)) > 0) {
+  if (answer === register && (await registerInto(missing)) > 0) {
     await offerTsServerRestart();
   }
 }
@@ -172,13 +184,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const updateStatusBar = (): void => {
     if (isEnabled()) {
-      statusBar.text = "$(globe) 訳 JP";
-      statusBar.tooltip =
-        "yakudoc: JSDoc を日本語訳で表示中(クリックで原文に戻す)";
+      statusBar.text = vscode.l10n.t("$(globe) Translated");
+      statusBar.tooltip = vscode.l10n.t(
+        "yakudoc: Showing JSDoc translated (click to show the original)"
+      );
     } else {
-      statusBar.text = "$(globe) 訳 EN";
-      statusBar.tooltip =
-        "yakudoc: JSDoc を原文で表示中(クリックで日本語訳に切り替え)";
+      statusBar.text = vscode.l10n.t("$(globe) Original");
+      statusBar.tooltip = vscode.l10n.t(
+        "yakudoc: Showing JSDoc as the original (click to show translations)"
+      );
     }
     statusBar.show();
   };
@@ -196,12 +210,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("yakudoc.init", async () => {
       runInTerminal("npx yakudoc init");
       // ターミナル実行の完了は検知できないため、再起動の導線だけ先に出しておく
+      const restart = vscode.l10n.t("Restart");
       const answer = await vscode.window.showInformationMessage(
-        "yakudoc: init をターミナルで実行しています。プラグインを新規登録した場合、" +
-          "完了後に TS Server の再起動が必要です。",
-        "再起動"
+        vscode.l10n.t(
+          "yakudoc: Running init in the terminal. If the plugin was newly registered, restart the TS Server after it finishes."
+        ),
+        restart
       );
-      if (answer === "再起動") {
+      if (answer === restart) {
         await vscode.commands.executeCommand("typescript.restartTsServer");
       }
     }),
