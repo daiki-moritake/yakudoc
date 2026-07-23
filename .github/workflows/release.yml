@@ -44,8 +44,9 @@ jobs:
       - name: Build (依存順にビルド。publish 対象は dist のみ)
         run: npm run build
 
+      # Build 済みなので test:packages(ビルドしない)でテストだけ回す
       - name: Test
-        run: npm test
+        run: npm run test:packages
 
       # yakudoc を先頭に、依存される側から順に publish する。
       # 公開済みのバージョンはスキップするため、途中で失敗しても
