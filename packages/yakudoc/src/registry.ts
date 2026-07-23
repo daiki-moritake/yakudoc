@@ -1,3 +1,4 @@
+import { m } from "./i18n";
 import { packFileNameFor, parsePack, type PackFile } from "./packs";
 
 /** コミュニティ翻訳パックのリポジトリ(export コマンドが PR 先として案内する) */
@@ -83,7 +84,7 @@ export async function fetchCommunityPack(options: {
     if (!response.ok) {
       return {
         status: "error",
-        message: `レジストリが HTTP ${response.status} を返しました`,
+        message: m().registryHttpError(response.status),
         url,
       };
     }
@@ -93,7 +94,7 @@ export async function fetchCommunityPack(options: {
     } catch {
       return {
         status: "error",
-        message: "レジストリの応答を JSON として解釈できませんでした",
+        message: m().registryNotJson(),
         url,
       };
     }
@@ -101,7 +102,7 @@ export async function fetchCommunityPack(options: {
     if (!pack) {
       return {
         status: "error",
-        message: "レジストリの応答がパック形式ではありませんでした",
+        message: m().registryNotPackFormat(),
         url,
       };
     }
@@ -111,7 +112,7 @@ export async function fetchCommunityPack(options: {
       status: "error",
       message:
         controller.signal.aborted
-          ? "タイムアウトしました"
+          ? m().registryTimeout()
           : error instanceof Error
             ? error.message
             : String(error),

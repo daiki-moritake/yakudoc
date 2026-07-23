@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import * as ts from "typescript";
 import { configPathFor, readConfig, resolveTargetLang } from "./config";
+import { m } from "./i18n";
 import { effectivePluginsOf, PLUGIN_NAME } from "./init";
 import { resolveInstalledPackage } from "./installed";
 import { DEFAULT_TARGET_LANG } from "./languages";
@@ -60,12 +61,10 @@ export function doctorProject(options: DoctorOptions): DoctorReport {
     : ts.findConfigFile(projectDir, ts.sys.fileExists, "tsconfig.json");
   if (!tsconfigPath || !ts.sys.fileExists(tsconfigPath)) {
     checks.push({
-      label: "プラグイン登録",
+      label: m().doctorLabelPluginRegistration(),
       level: "error",
-      detail: "tsconfig.json が見つかりません",
-      hint:
-        "--project でパスを指定するか、`npx tsc --init` で作成してから" +
-        " `npx yakudoc init` を実行してください。",
+      detail: m().doctorTsconfigNotFound(),
+      hint: m().doctorTsconfigNotFoundHint(),
     });
   } else {
     const tsconfigLabel = path.relative(projectDir, tsconfigPath) || tsconfigPath;
@@ -75,15 +74,18 @@ export function doctorProject(options: DoctorOptions): DoctorReport {
     checks.push(
       registered
         ? {
-            label: "プラグイン登録",
+            label: m().doctorLabelPluginRegistration(),
             level: "ok",
-            detail: `${tsconfigLabel} に ${PLUGIN_NAME} を登録済み`,
+            detail: m().doctorPluginRegisteredDetail(tsconfigLabel, PLUGIN_NAME),
           }
         : {
-            label: "プラグイン登録",
+            label: m().doctorLabelPluginRegistration(),
             level: "error",
-            detail: `${tsconfigLabel} に ${PLUGIN_NAME} が登録されていません`,
-            hint: "`npx yakudoc init` で登録と初回 extract をまとめて実行できます。",
+            detail: m().doctorPluginNotRegisteredDetail(
+              tsconfigLabel,
+              PLUGIN_NAME
+            ),
+            hint: m().doctorPluginNotRegisteredHint(),
           }
     );
   }
@@ -93,18 +95,15 @@ export function doctorProject(options: DoctorOptions): DoctorReport {
   checks.push(
     pluginDir
       ? {
-          label: "プラグイン本体",
+          label: m().doctorLabelPluginBinary(),
           level: "ok",
           detail: path.relative(projectDir, pluginDir) || pluginDir,
         }
       : {
-          label: "プラグイン本体",
+          label: m().doctorLabelPluginBinary(),
           level: "error",
-          detail: `${PLUGIN_NAME} が node_modules に見つかりません`,
-          hint:
-            `tsserver は解決できないプラグインを黙って無視するため、` +
-            `このままでは表示が変わりません:\n` +
-            `  npm install --save-dev ${PLUGIN_NAME}`,
+          detail: m().doctorPluginBinaryMissingDetail(PLUGIN_NAME),
+          hint: m().doctorPluginBinaryMissingHint(PLUGIN_NAME),
         }
   );
 
@@ -116,18 +115,18 @@ export function doctorProject(options: DoctorOptions): DoctorReport {
     targetLang = resolveTargetLang(undefined, yakudocConfigPath);
     const fromConfig = readConfig(yakudocConfigPath).targetLang !== undefined;
     langCheck = {
-      label: "翻訳先言語",
+      label: m().doctorLabelTargetLang(),
       level: "ok",
       detail: fromConfig
-        ? `${targetLang}(.yakudoc/config.json)`
-        : `${targetLang}(既定)`,
+        ? m().doctorTargetLangFromConfig(targetLang)
+        : m().doctorTargetLangDefault(targetLang),
     };
   } catch (error) {
     langCheck = {
-      label: "翻訳先言語",
+      label: m().doctorLabelTargetLang(),
       level: "error",
       detail: error instanceof Error ? error.message : String(error),
-      hint: `.yakudoc/config.json を修正するか削除してください(削除すると既定の ${DEFAULT_TARGET_LANG} に戻ります)。`,
+      hint: m().doctorTargetLangErrorHint(DEFAULT_TARGET_LANG),
     };
   }
 
@@ -141,23 +140,28 @@ export function doctorProject(options: DoctorOptions): DoctorReport {
       packs.length > 0
         ? {
             // 依存パッケージの翻訳だけを使う運用は正当なので警告にしない
-            label: "translations.json",
+            label: m().doctorLabelTranslations(),
             level: "ok",
-            detail: `${outLabel} なし(依存パッケージの翻訳のみ使用中)`,
+            detail: m().doctorTranslationsNoneWithPacks(outLabel),
           }
         : {
-            label: "translations.json",
+            label: m().doctorLabelTranslations(),
             level: "warn",
-            detail: `${outLabel} がありません`,
-            hint: "`npx yakudoc init`(または `npx yakudoc extract`)で生成できます。",
+            detail: m().doctorTranslationsMissingDetail(outLabel),
+            hint: m().doctorTranslationsMissingHint(),
           }
     );
   } else {
     const counts = computeStatus(translations, targetLang ?? DEFAULT_TARGET_LANG);
     checks.push({
-      label: "translations.json",
+      label: m().doctorLabelTranslations(),
       level: "ok",
-      detail: `${outLabel}(全 ${counts.total} 件 / 翻訳済み ${counts.translated} / 翻訳待ち ${counts.untranslated})`,
+      detail: m().doctorTranslationsDetail(
+        outLabel,
+        counts.total,
+        counts.translated,
+        counts.untranslated
+      ),
     });
   }
 
@@ -170,16 +174,15 @@ export function doctorProject(options: DoctorOptions): DoctorReport {
       return `${loaded.pack.name}${version} ${counts.translated}/${counts.total}`;
     });
     checks.push({
-      label: "翻訳パック",
+      label: m().doctorLabelPacks(),
       level: "ok",
-      detail: `${packs.length} パッケージ(${parts.join(", ")})`,
+      detail: m().doctorPacksDetail(packs.length, parts.join(", ")),
     });
   } else {
     checks.push({
-      label: "翻訳パック",
+      label: m().doctorLabelPacks(),
       level: "ok",
-      detail:
-        "なし(`npx yakudoc add <パッケージ名>` で依存ライブラリの翻訳を追加できます)",
+      detail: m().doctorPacksNoneDetail(),
     });
   }
 
@@ -191,16 +194,16 @@ export function doctorProject(options: DoctorOptions): DoctorReport {
   );
   checks.push(
     engines.length > 0
-      ? { label: "翻訳エンジン", level: "ok", detail: engines.join(", ") }
+      ? {
+          label: m().doctorLabelEngine(),
+          level: "ok",
+          detail: engines.join(", "),
+        }
       : {
-          label: "翻訳エンジン",
+          label: m().doctorLabelEngine(),
           level: "warn",
-          detail: "yakudoc-mt / yakudoc-ai-prep のどちらも見つかりません",
-          hint:
-            "`yakudoc translate` を使う場合はどちらかをインストールしてください" +
-            "(translations.json を直接編集するだけなら不要です):\n" +
-            "  npm install --save-dev yakudoc-mt       (内蔵モデルで翻訳)\n" +
-            "  npm install --save-dev yakudoc-ai-prep  (任意の AI に依頼)",
+          detail: m().doctorEngineNoneDetail(),
+          hint: m().doctorEngineNoneHint(),
         }
   );
 

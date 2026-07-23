@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { m } from "./i18n";
 import {
   listPacks,
   packPathFor,
@@ -48,10 +49,7 @@ export function loadProjectSources(
       const filePath = packPathFor(projectDir, name, options.translationsPath);
       const source = loadSourceAt(filePath);
       if (!source) {
-        throw new Error(
-          `${name} の翻訳パックが見つかりません(${filePath})。` +
-            `\n  先に \`yakudoc add ${name}\` を実行してください。`
-        );
+        throw new Error(m().packNotFound(name, filePath));
       }
       sources.push(source);
     }

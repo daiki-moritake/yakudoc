@@ -1,3 +1,5 @@
+import { m } from "./i18n";
+
 /** translate のエンジン名 → 実装パッケージ */
 export const ENGINE_PACKAGES: Record<string, string> = {
   prep: "yakudoc-ai-prep",
@@ -29,9 +31,7 @@ export function selectEngine(
   if (explicit) {
     const packageName = ENGINE_PACKAGES[explicit];
     if (!packageName) {
-      throw new Error(
-        `不明なエンジンです: ${explicit}(prep または local が使えます)`
-      );
+      throw new Error(m().engineUnknown(explicit));
     }
     return { engine: explicit, packageName };
   }
@@ -40,7 +40,7 @@ export function selectEngine(
     return {
       engine: "prep",
       packageName: ENGINE_PACKAGES.prep,
-      note: "--apply 指定のため prep エンジンを使います",
+      note: m().engineApplyNote(),
     };
   }
 
@@ -52,17 +52,11 @@ export function selectEngine(
     return {
       engine,
       packageName,
-      note: `--engine 未指定のため、インストール済みの ${engine}(${packageName})を使います`,
+      note: m().engineAutoNote(engine, packageName),
     };
   }
   if (installed.length === 0) {
-    throw new Error(
-      "--engine を指定してください(prep または local)。どちらのエンジンも見つかりません:\n" +
-        "  npm install --save-dev yakudoc-mt       (local: 内蔵モデルで翻訳)\n" +
-        "  npm install --save-dev yakudoc-ai-prep  (prep: 任意の AI に依頼)"
-    );
+    throw new Error(m().engineNoneInstalled());
   }
-  throw new Error(
-    "--engine を指定してください(prep または local)。両方のエンジンがインストールされています。"
-  );
+  throw new Error(m().engineBothInstalled());
 }
