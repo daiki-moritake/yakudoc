@@ -31,5 +31,7 @@ jobs:
       - name: Build (依存順にビルド。テストは dist を参照するため必須)
         run: npm run build
 
+      # Build 済みなので test:packages(ビルドしない)で全パッケージのテストだけ回す。
+      # ローカルの `npm test` は build も含む一括チェック。
       - name: Test
-        run: npm test
+        run: npm run test:packages
